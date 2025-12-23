@@ -5,6 +5,7 @@ import CanvasStage from '../components/editor/CanvasStage'
 import LayersPanel from '../components/editor/LayersPanel'
 import { cmToPx } from '../components/editor/cmPx'
 import { generateId } from '../components/editor/types'
+import ImageEditModal from '../components/editor/ImageEditModal'
 import type { EditorNode } from '../components/editor/types'
 
 const DEFAULT_WIDTH_CM = '15'
@@ -15,6 +16,8 @@ const StickerEditorPage = () => {
   const [heightCm, setHeightCm] = useState(DEFAULT_HEIGHT_CM)
   const [nodes, setNodes] = useState<EditorNode[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
 
   const widthValue = parseFloat(widthCm)
   const heightValue = parseFloat(heightCm)
@@ -49,7 +52,7 @@ const StickerEditorPage = () => {
     setSelectedId(id)
   }
 
-  const addImageNode = (file: File) => {
+  const addImageNode = (file: Blob) => {
     if (!canvasPx) return
 
     const id = generateId()
@@ -82,6 +85,16 @@ const StickerEditorPage = () => {
     }
 
     image.src = objectUrl
+  }
+
+  const handleUploadImage = (file: File) => {
+    setImageFile(file)
+    setIsImageModalOpen(true)
+  }
+
+  const handleCloseImageModal = () => {
+    setIsImageModalOpen(false)
+    setImageFile(null)
   }
 
   const updateNode = (updatedNode: EditorNode) => {
@@ -117,7 +130,7 @@ const StickerEditorPage = () => {
             onWidthCmChange={setWidthCm}
             onHeightCmChange={setHeightCm}
             onAddText={addTextNode}
-            onUploadImage={addImageNode}
+            onUploadImage={handleUploadImage}
             onDeleteSelected={deleteSelected}
             canDelete={Boolean(selectedId)}
             isCanvasValid={isCanvasValid}
@@ -144,6 +157,12 @@ const StickerEditorPage = () => {
           isCanvasValid={isCanvasValid}
         />
       </EditorLayout>
+      <ImageEditModal
+        file={imageFile}
+        isOpen={isImageModalOpen}
+        onClose={handleCloseImageModal}
+        onAddToCanvas={addImageNode}
+      />
     </div>
   )
 }

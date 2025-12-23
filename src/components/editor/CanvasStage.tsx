@@ -27,16 +27,98 @@ type CanvasStageProps = {
 
 type Size = { width: number; height: number }
 
+const clampNodePosition = (
+  node: Konva.Node,
+  canvasWidth: number,
+  canvasHeight: number
+) => {
+  const stage = node.getStage()
+  const rect = node.getClientRect({
+    skipShadow: true,
+    skipStroke: true,
+    relativeTo: stage ?? undefined,
+  })
+  let dx = 0
+  let dy = 0
+
+  if (rect.x < 0) {
+    dx = -rect.x
+  } else if (rect.x + rect.width > canvasWidth) {
+    dx = canvasWidth - (rect.x + rect.width)
+  }
+
+  if (rect.y < 0) {
+    dy = -rect.y
+  } else if (rect.y + rect.height > canvasHeight) {
+    dy = canvasHeight - (rect.y + rect.height)
+  }
+
+  const current = node.position()
+  return {
+    x: current.x + dx,
+    y: current.y + dy,
+  }
+}
+
+const getBoundedDragPosition = (
+  node: Konva.Node,
+  pos: { x: number; y: number },
+  canvasWidth: number,
+  canvasHeight: number
+) => {
+  const stage = node.getStage()
+  const rect = node.getClientRect({
+    skipShadow: true,
+    skipStroke: true,
+    relativeTo: stage ?? undefined,
+  })
+  const current = node.absolutePosition()
+  const deltaX = pos.x - current.x
+  const deltaY = pos.y - current.y
+  const nextRect = {
+    x: rect.x + deltaX,
+    y: rect.y + deltaY,
+    width: rect.width,
+    height: rect.height,
+  }
+
+  let x = pos.x
+  let y = pos.y
+
+  if (nextRect.x < 0) {
+    x += -nextRect.x
+  } else if (nextRect.x + nextRect.width > canvasWidth) {
+    x -= nextRect.x + nextRect.width - canvasWidth
+  }
+
+  if (nextRect.y < 0) {
+    y += -nextRect.y
+  } else if (nextRect.y + nextRect.height > canvasHeight) {
+    y -= nextRect.y + nextRect.height - canvasHeight
+  }
+
+  return { x, y }
+}
+
+const createDragBoundFunc = (canvasWidth: number, canvasHeight: number) =>
+  function (this: Konva.Node, pos: { x: number; y: number }) {
+    return getBoundedDragPosition(this, pos, canvasWidth, canvasHeight)
+  }
+
 const EditorImage = ({
   node,
   onSelect,
   onChange,
   setRef,
+  canvasWidth,
+  canvasHeight,
 }: {
   node: ImageNode
   onSelect: () => void
   onChange: (node: ImageNode) => void
   setRef: (node: Konva.Node | null) => void
+  canvasWidth: number
+  canvasHeight: number
 }) => {
   const [image, status] = useImage(node.src)
 
@@ -55,12 +137,16 @@ const EditorImage = ({
       draggable
       onClick={onSelect}
       onTap={onSelect}
+      dragBoundFunc={createDragBoundFunc(canvasWidth, canvasHeight)}
       ref={setRef}
       onDragEnd={(event) => {
+        const target = event.target
+        const clamped = clampNodePosition(target, canvasWidth, canvasHeight)
+        target.position(clamped)
         onChange({
           ...node,
-          x: event.target.x(),
-          y: event.target.y(),
+          x: clamped.x,
+          y: clamped.y,
         })
       }}
       onTransformEnd={(event) => {
@@ -71,10 +157,14 @@ const EditorImage = ({
         const nextHeight = Math.max(MIN_NODE_SIZE, target.height() * scaleY)
         target.scaleX(1)
         target.scaleY(1)
+        target.width(nextWidth)
+        target.height(nextHeight)
+        const clamped = clampNodePosition(target, canvasWidth, canvasHeight)
+        target.position(clamped)
         onChange({
           ...node,
-          x: target.x(),
-          y: target.y(),
+          x: clamped.x,
+          y: clamped.y,
           rotation: target.rotation(),
           width: nextWidth,
           height: nextHeight,
@@ -243,14 +333,10 @@ const CanvasStage = ({
 
     target.scaleX(1)
     target.scaleY(1)
-
-    onChange({
-      ...node,
-      x: target.x(),
-      y: target.y(),
-      rotation: target.rotation(),
-      fontSize: nextFontSize,
-    })
+    if (target instanceof Konva.Text) {
+      target.fontSize(nextFontSize)
+    }
+    return nextFontSize
   }
 
   return (
@@ -296,20 +382,45 @@ const CanvasStage = ({
                     draggable
                     onClick={() => onSelect(node.id)}
                     onTap={() => onSelect(node.id)}
+                    dragBoundFunc={createDragBoundFunc(
+                      canvasWidth,
+                      canvasHeight
+                    )}
                     onDblClick={() => openTextEditor(node)}
                     onDblTap={() => openTextEditor(node)}
                     ref={(ref) => {
                       nodeRefs.current[node.id] = ref
                     }}
                     onDragEnd={(event) => {
+                      const target = event.target
+                      const clamped = clampNodePosition(
+                        target,
+                        canvasWidth,
+                        canvasHeight
+                      )
+                      target.position(clamped)
                       onChange({
                         ...node,
-                        x: event.target.x(),
-                        y: event.target.y(),
+                        x: clamped.x,
+                        y: clamped.y,
                       })
                     }}
                     onTransformEnd={(event) => {
-                      handleTextTransform(node, event.target)
+                      const target = event.target
+                      const nextFontSize = handleTextTransform(node, target)
+                      const clamped = clampNodePosition(
+                        target,
+                        canvasWidth,
+                        canvasHeight
+                      )
+                      target.position(clamped)
+                      onChange({
+                        ...node,
+                        x: clamped.x,
+                        y: clamped.y,
+                        rotation: target.rotation(),
+                        fontSize: nextFontSize,
+                      })
                     }}
                   />
                 )
@@ -321,6 +432,8 @@ const CanvasStage = ({
                   node={node}
                   onSelect={() => onSelect(node.id)}
                   onChange={onChange}
+                  canvasWidth={canvasWidth}
+                  canvasHeight={canvasHeight}
                   setRef={(ref) => {
                     nodeRefs.current[node.id] = ref
                   }}
