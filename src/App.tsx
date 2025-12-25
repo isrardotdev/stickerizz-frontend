@@ -1,4 +1,3 @@
-import './App.css'
 import StickerEditorPage from './pages/StickerEditorPage'
 
 function App() {

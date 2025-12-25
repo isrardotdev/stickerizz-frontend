@@ -14,12 +14,16 @@ import type { EditorNode, ImageNode, TextNode } from './types'
 
 const MIN_NODE_SIZE = 20
 const MIN_FONT_SIZE = 10
+const FALLBACK_FONT = 'Bebas Neue'
+const FALLBACK_TEXT_COLOR = '#111827'
+const FALLBACK_LETTER_SPACING = 0
 
 type CanvasStageProps = {
   nodes: EditorNode[]
   selectedId: string | null
   onSelect: (id: string | null) => void
   onChange: (node: EditorNode) => void
+  onEditImage?: (id: string) => void
   canvasWidth: number
   canvasHeight: number
   isCanvasValid: boolean
@@ -109,6 +113,7 @@ const EditorImage = ({
   node,
   onSelect,
   onChange,
+  onEdit,
   setRef,
   canvasWidth,
   canvasHeight,
@@ -116,6 +121,7 @@ const EditorImage = ({
   node: ImageNode
   onSelect: () => void
   onChange: (node: ImageNode) => void
+  onEdit?: () => void
   setRef: (node: Konva.Node | null) => void
   canvasWidth: number
   canvasHeight: number
@@ -137,6 +143,8 @@ const EditorImage = ({
       draggable
       onClick={onSelect}
       onTap={onSelect}
+      onDblClick={onEdit}
+      onDblTap={onEdit}
       dragBoundFunc={createDragBoundFunc(canvasWidth, canvasHeight)}
       ref={setRef}
       onDragEnd={(event) => {
@@ -179,6 +187,7 @@ const CanvasStage = ({
   selectedId,
   onSelect,
   onChange,
+  onEditImage,
   canvasWidth,
   canvasHeight,
   isCanvasValid,
@@ -236,6 +245,33 @@ const CanvasStage = ({
   }, [nodes, selectedId])
 
   useEffect(() => {
+    const stage = stageRef.current
+    if (!stage) return
+
+    const loadFonts = async () => {
+      if (!document?.fonts?.load) {
+        stage.batchDraw()
+        return
+      }
+
+      const fontFamilies = Array.from(
+        new Set(
+          nodes
+            .filter((node): node is TextNode => node.type === 'text')
+            .map((node) => node.fontFamily || FALLBACK_FONT)
+        )
+      )
+
+      await Promise.all(
+        fontFamilies.map((font) => document.fonts.load(`16px "${font}"`))
+      )
+      stage.batchDraw()
+    }
+
+    loadFonts()
+  }, [nodes])
+
+  useEffect(() => {
     return () => {
       if (editingRef.current) {
         editingRef.current.remove()
@@ -282,7 +318,15 @@ const CanvasStage = ({
     textarea.style.width = `${textRect.width}px`
     textarea.style.height = `${textRect.height}px`
     textarea.style.fontSize = `${node.fontSize * stage.scaleX()}px`
-    textarea.style.fontFamily = 'inherit'
+    const fontFamily = node.fontFamily || FALLBACK_FONT
+    const fontStyle = node.fontStyle || 'normal'
+    const textColor = node.fill || FALLBACK_TEXT_COLOR
+    const letterSpacing = node.letterSpacing ?? FALLBACK_LETTER_SPACING
+    textarea.style.fontFamily = fontFamily
+    textarea.style.fontStyle = fontStyle.includes('italic') ? 'italic' : 'normal'
+    textarea.style.fontWeight = fontStyle.includes('bold') ? '700' : '400'
+    textarea.style.color = textColor
+    textarea.style.letterSpacing = `${letterSpacing}px`
     textarea.style.transform = `rotate(${textNode.rotation()}deg)`
     textarea.style.textAlign = textNode.align()
 
@@ -340,9 +384,11 @@ const CanvasStage = ({
   }
 
   return (
-    <div ref={containerRef} className="editor-canvas-container">
+    <div ref={containerRef} className="relative h-full w-full bg-slate-950">
       {!isCanvasValid ? (
-        <div className="canvas-placeholder">Enter a valid canvas size.</div>
+        <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
+          Enter a valid canvas size.
+        </div>
       ) : (
         <Stage
           ref={stageRef}
@@ -378,7 +424,10 @@ const CanvasStage = ({
                     y={node.y}
                     fontSize={node.fontSize}
                     rotation={node.rotation}
-                    fill="#111827"
+                    fontFamily={node.fontFamily || FALLBACK_FONT}
+                    fontStyle={node.fontStyle || 'normal'}
+                    fill={node.fill || FALLBACK_TEXT_COLOR}
+                    letterSpacing={node.letterSpacing ?? FALLBACK_LETTER_SPACING}
                     draggable
                     onClick={() => onSelect(node.id)}
                     onTap={() => onSelect(node.id)}
@@ -432,6 +481,7 @@ const CanvasStage = ({
                   node={node}
                   onSelect={() => onSelect(node.id)}
                   onChange={onChange}
+                  onEdit={() => onEditImage?.(node.id)}
                   canvasWidth={canvasWidth}
                   canvasHeight={canvasHeight}
                   setRef={(ref) => {

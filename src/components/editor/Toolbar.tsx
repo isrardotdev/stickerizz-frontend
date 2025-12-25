@@ -1,3 +1,6 @@
+import Button, { buttonClassName } from '../ui/Button'
+import TextInput from '../ui/TextInput'
+
 type ToolbarProps = {
   widthCm: string
   heightCm: string
@@ -28,11 +31,13 @@ const Toolbar = ({
   const uploadDisabled = !isCanvasValid
 
   return (
-    <div className="toolbar-section">
-      <div className="toolbar-section">
-        <div className="toolbar-title">Canvas Size (cm)</div>
-        <div className="toolbar-row">
-          <input
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2.5">
+        <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
+          Canvas Size (cm)
+        </div>
+        <div className="flex gap-2">
+          <TextInput
             type="number"
             step="0.1"
             min="0"
@@ -40,7 +45,7 @@ const Toolbar = ({
             onChange={(event) => onWidthCmChange(event.target.value)}
             placeholder="Width"
           />
-          <input
+          <TextInput
             type="number"
             step="0.1"
             min="0"
@@ -50,27 +55,37 @@ const Toolbar = ({
           />
         </div>
         {errorMessage ? (
-          <div className="toolbar-error">{errorMessage}</div>
+          <div className="text-xs text-red-300">{errorMessage}</div>
         ) : null}
         {isCanvasValid && canvasPx ? (
-          <div className="toolbar-hint">
+          <div className="text-xs text-slate-400">
             {widthCm}cm x {heightCm}cm · {Math.round(canvasPx.width)}px x{' '}
             {Math.round(canvasPx.height)}px
           </div>
         ) : null}
       </div>
 
-      <div className="toolbar-section">
-        <div className="toolbar-title">Tools</div>
-        <button
-          className="toolbar-button"
+      <div className="flex flex-col gap-2.5">
+        <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
+          Tools
+        </div>
+        <Button
+          variant="outline"
+          align="start"
           onClick={onAddText}
           disabled={!isCanvasValid}
+          className="w-full"
         >
           Add Text
-        </button>
+        </Button>
         <label
-          className={`toolbar-button${uploadDisabled ? ' toolbar-button--disabled' : ''}`}
+          className={buttonClassName({
+            variant: 'outline',
+            align: 'start',
+            className: uploadDisabled
+              ? 'w-full cursor-not-allowed opacity-50'
+              : 'w-full',
+          })}
           htmlFor="editor-upload"
           aria-disabled={uploadDisabled}
         >
@@ -90,20 +105,24 @@ const Toolbar = ({
           }}
           disabled={uploadDisabled}
         />
-        <button
-          className="toolbar-button"
+        <Button
+          variant="outline"
+          align="start"
           onClick={onDeleteSelected}
           disabled={!canDelete}
+          className="w-full"
         >
           Delete Selected
-        </button>
+        </Button>
       </div>
 
-      <div className="toolbar-section">
-        <div className="toolbar-title">Hints</div>
-        <div className="toolbar-hint">- Drag empty space to pan</div>
-        <div className="toolbar-hint">- Scroll to zoom</div>
-        <div className="toolbar-hint">- Double click text to edit</div>
+      <div className="flex flex-col gap-2.5">
+        <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
+          Hints
+        </div>
+        <div className="text-xs text-slate-400">- Drag empty space to pan</div>
+        <div className="text-xs text-slate-400">- Scroll to zoom</div>
+        <div className="text-xs text-slate-400">- Double click text to edit</div>
       </div>
     </div>
   )

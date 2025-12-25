@@ -12,6 +12,10 @@ export type TextNode = BaseNode & {
   type: 'text'
   text: string
   fontSize: number
+  fontFamily: string
+  fontStyle: string
+  fill: string
+  letterSpacing: number
 }
 
 export type ImageNode = BaseNode & {
