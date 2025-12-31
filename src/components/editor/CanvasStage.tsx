@@ -17,6 +17,7 @@ const MIN_FONT_SIZE = 10
 const FALLBACK_FONT = 'Bebas Neue'
 const FALLBACK_TEXT_COLOR = '#111827'
 const FALLBACK_LETTER_SPACING = 0
+const FALLBACK_STROKE_COLOR = '#0f172a'
 
 type CanvasStageProps = {
   nodes: EditorNode[]
@@ -114,6 +115,7 @@ const EditorImage = ({
   onSelect,
   onChange,
   onEdit,
+  lockUniformScale,
   setRef,
   canvasWidth,
   canvasHeight,
@@ -122,11 +124,17 @@ const EditorImage = ({
   onSelect: () => void
   onChange: (node: ImageNode) => void
   onEdit?: () => void
+  lockUniformScale?: boolean
   setRef: (node: Konva.Node | null) => void
   canvasWidth: number
   canvasHeight: number
 }) => {
   const [image, status] = useImage(node.src)
+  const transformStateRef = useRef<{
+    centerX: number
+    centerY: number
+    lockedScale: number
+  } | null>(null)
 
   if (status === 'failed') {
     return null
@@ -157,6 +165,74 @@ const EditorImage = ({
           y: clamped.y,
         })
       }}
+      onTransformStart={(event) => {
+        if (!lockUniformScale) {
+          transformStateRef.current = null
+          return
+        }
+
+        const target = event.target
+        const stage = target.getStage()
+        if (!stage) return
+        const rect = target.getClientRect({
+          skipShadow: true,
+          skipStroke: true,
+          relativeTo: stage,
+        })
+        transformStateRef.current = {
+          centerX: rect.x + rect.width / 2,
+          centerY: rect.y + rect.height / 2,
+          lockedScale: 1,
+        }
+      }}
+      onTransform={(event) => {
+        if (!lockUniformScale) {
+          transformStateRef.current = null
+          return
+        }
+        const target = event.target
+        const stage = target.getStage()
+        if (!stage) return
+
+        const state = transformStateRef.current
+        if (!state) {
+          const rect = target.getClientRect({
+            skipShadow: true,
+            skipStroke: true,
+            relativeTo: stage,
+          })
+          transformStateRef.current = {
+            centerX: rect.x + rect.width / 2,
+            centerY: rect.y + rect.height / 2,
+            lockedScale: target.scaleX() || 1,
+          }
+          return
+        }
+
+        const rawScaleX = target.scaleX()
+        const rawScaleY = target.scaleY()
+        const deltaX = Math.abs(rawScaleX - state.lockedScale)
+        const deltaY = Math.abs(rawScaleY - state.lockedScale)
+        const nextScale = deltaX >= deltaY ? rawScaleX : rawScaleY
+
+        target.scaleX(nextScale)
+        target.scaleY(nextScale)
+
+        const newRect = target.getClientRect({
+          skipShadow: true,
+          skipStroke: true,
+          relativeTo: stage,
+        })
+        const newCenter = {
+          x: newRect.x + newRect.width / 2,
+          y: newRect.y + newRect.height / 2,
+        }
+
+        const dx = state.centerX - newCenter.x
+        const dy = state.centerY - newCenter.y
+        target.position({ x: target.x() + dx, y: target.y() + dy })
+        state.lockedScale = nextScale
+      }}
       onTransformEnd={(event) => {
         const target = event.target
         const scaleX = target.scaleX()
@@ -177,6 +253,7 @@ const EditorImage = ({
           width: nextWidth,
           height: nextHeight,
         })
+        transformStateRef.current = null
       }}
     />
   )
@@ -198,12 +275,30 @@ const CanvasStage = ({
   const nodeRefs = useRef<Record<string, Konva.Node | null>>({})
   const editingRef = useRef<HTMLTextAreaElement | null>(null)
   const [isEditing, setIsEditing] = useState(false)
+  const [isShiftPressed, setIsShiftPressed] = useState(false)
   const [containerSize, setContainerSize] = useState<Size>({
     width: 0,
     height: 0,
   })
 
   const { handleWheel } = useStageZoomPan(stageRef)
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Shift') setIsShiftPressed(true)
+    }
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Shift') setIsShiftPressed(false)
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -416,6 +511,10 @@ const CanvasStage = ({
           <Layer>
             {nodes.map((node) => {
               if (node.type === 'text') {
+                const strokeEnabled = node.strokeEnabled ?? false
+                const strokeWidth = node.strokeWidth ?? 0
+                const strokeColor = node.strokeColor || FALLBACK_STROKE_COLOR
+                const strokeJoin = node.strokeJoin ?? 'round'
                 return (
                   <KonvaText
                     key={node.id}
@@ -428,6 +527,9 @@ const CanvasStage = ({
                     fontStyle={node.fontStyle || 'normal'}
                     fill={node.fill || FALLBACK_TEXT_COLOR}
                     letterSpacing={node.letterSpacing ?? FALLBACK_LETTER_SPACING}
+                    stroke={node.strokeEnabled ? strokeColor : undefined}
+                    strokeWidth={strokeEnabled ? strokeWidth : 0}
+                    lineJoin={strokeJoin}
                     draggable
                     onClick={() => onSelect(node.id)}
                     onTap={() => onSelect(node.id)}
@@ -482,6 +584,7 @@ const CanvasStage = ({
                   onSelect={() => onSelect(node.id)}
                   onChange={onChange}
                   onEdit={() => onEditImage?.(node.id)}
+                  lockUniformScale={isShiftPressed}
                   canvasWidth={canvasWidth}
                   canvasHeight={canvasHeight}
                   setRef={(ref) => {

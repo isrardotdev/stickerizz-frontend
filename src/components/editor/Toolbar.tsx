@@ -8,8 +8,6 @@ type ToolbarProps = {
   onHeightCmChange: (value: string) => void
   onAddText: () => void
   onUploadImage: (file: File) => void
-  onDeleteSelected: () => void
-  canDelete: boolean
   isCanvasValid: boolean
   errorMessage: string | null
   canvasPx: { width: number; height: number } | null
@@ -22,8 +20,6 @@ const Toolbar = ({
   onHeightCmChange,
   onAddText,
   onUploadImage,
-  onDeleteSelected,
-  canDelete,
   isCanvasValid,
   errorMessage,
   canvasPx,
@@ -105,15 +101,6 @@ const Toolbar = ({
           }}
           disabled={uploadDisabled}
         />
-        <Button
-          variant="outline"
-          align="start"
-          onClick={onDeleteSelected}
-          disabled={!canDelete}
-          className="w-full"
-        >
-          Delete Selected
-        </Button>
       </div>
 
       <div className="flex flex-col gap-2.5">

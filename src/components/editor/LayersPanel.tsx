@@ -21,12 +21,14 @@ type LayersPanelProps = {
   selectedId: string | null
   onSelect: (id: string | null) => void
   onReorder: (orderedIds: string[]) => void
+  onDelete: (id: string) => void
 }
 
 type LayerItemProps = {
   node: EditorNode
   isSelected: boolean
   onSelect: () => void
+  onDelete: () => void
 }
 
 const getLayerLabel = (node: EditorNode) => {
@@ -37,7 +39,7 @@ const getLayerLabel = (node: EditorNode) => {
   return 'Image'
 }
 
-const LayerItem = ({ node, isSelected, onSelect }: LayerItemProps) => {
+const LayerItem = ({ node, isSelected, onSelect, onDelete }: LayerItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: node.id })
 
@@ -47,16 +49,21 @@ const LayerItem = ({ node, isSelected, onSelect }: LayerItemProps) => {
   }
 
   return (
-    <button
+    <div
       ref={setNodeRef}
-      type="button"
-      className={`grid w-full cursor-grab grid-cols-[20px_52px_1fr] items-center gap-2 rounded-xl border px-3 py-2 text-left text-slate-200 transition-colors active:cursor-grabbing ${
+      className={`group grid w-full cursor-grab grid-cols-[20px_52px_1fr_28px] items-center gap-2 rounded-xl border px-3 py-2 text-left text-slate-200 transition-colors active:cursor-grabbing ${
         isSelected
           ? 'border-blue-400 bg-slate-800/60 shadow-[0_0_0_1px_rgba(96,165,250,0.4)]'
           : 'border-slate-700 bg-slate-900 hover:border-blue-500 hover:bg-slate-800/70'
       }`}
       style={style}
       onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect()
+        }
+      }}
       {...attributes}
       {...listeners}
     >
@@ -67,11 +74,42 @@ const LayerItem = ({ node, isSelected, onSelect }: LayerItemProps) => {
         {node.type}
       </span>
       <span className="truncate text-sm">{getLayerLabel(node)}</span>
-    </button>
+      <button
+        type="button"
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-slate-400 opacity-0 transition-opacity hover:bg-slate-800 hover:text-slate-200 group-hover:opacity-100 group-focus-within:opacity-100 max-[900px]:opacity-100"
+        onPointerDown={(event) => {
+          event.stopPropagation()
+        }}
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          onDelete()
+        }}
+        aria-label="Delete layer"
+        title="Delete"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-4 w-4"
+          aria-hidden="true"
+        >
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="M19 6l-1 14H6L5 6" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </svg>
+      </button>
+    </div>
   )
 }
 
-const LayersPanel = ({ nodes, selectedId, onSelect, onReorder }: LayersPanelProps) => {
+const LayersPanel = ({ nodes, selectedId, onSelect, onReorder, onDelete }: LayersPanelProps) => {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const orderedIds = useMemo(() => nodes.map((node) => node.id).reverse(), [nodes])
@@ -109,6 +147,7 @@ const LayersPanel = ({ nodes, selectedId, onSelect, onReorder }: LayersPanelProp
                   node={node}
                   isSelected={node.id === selectedId}
                   onSelect={() => onSelect(node.id)}
+                  onDelete={() => onDelete(node.id)}
                 />
               )
             })}

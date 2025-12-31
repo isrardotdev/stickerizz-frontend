@@ -16,6 +16,10 @@ export type TextNode = BaseNode & {
   fontStyle: string
   fill: string
   letterSpacing: number
+  strokeEnabled: boolean
+  strokeColor: string
+  strokeWidth: number
+  strokeJoin: 'miter' | 'round' | 'bevel'
 }
 
 export type ImageNode = BaseNode & {

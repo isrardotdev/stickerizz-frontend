@@ -9,12 +9,16 @@ import { generateId } from '../components/editor/types'
 import ImageEditModal from '../components/editor/ImageEditModal'
 import type { EditorNode } from '../components/editor/types'
 import Button from '../components/ui/Button'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 
 const DEFAULT_WIDTH_CM = '15'
 const DEFAULT_HEIGHT_CM = '15'
 const DEFAULT_TEXT_FONT = 'Bebas Neue'
 const DEFAULT_TEXT_COLOR = '#111827'
 const DEFAULT_LETTER_SPACING = 0
+const DEFAULT_STROKE_COLOR = '#0f172a'
+const DEFAULT_STROKE_WIDTH = 2
+const DEFAULT_STROKE_JOIN: 'miter' | 'round' | 'bevel' = 'round'
 const FONT_OPTIONS = [
   'Bebas Neue',
   'Anton',
@@ -39,6 +43,8 @@ const StickerEditorPage = () => {
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
   const rightPanelRef = useRef<HTMLDivElement | null>(null)
   const [rightSplitRatio, setRightSplitRatio] = useState(0.5)
+  const [isStrokeOpen, setIsStrokeOpen] = useState(true)
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const widthValue = parseFloat(widthCm)
   const heightValue = parseFloat(heightCm)
@@ -70,6 +76,10 @@ const StickerEditorPage = () => {
       fontStyle: 'normal',
       fill: DEFAULT_TEXT_COLOR,
       letterSpacing: DEFAULT_LETTER_SPACING,
+      strokeEnabled: false,
+      strokeColor: DEFAULT_STROKE_COLOR,
+      strokeWidth: DEFAULT_STROKE_WIDTH,
+      strokeJoin: DEFAULT_STROKE_JOIN,
       x: canvasPx.width / 2 - 120,
       y: canvasPx.height / 2 - 20,
       rotation: 0,
@@ -205,10 +215,14 @@ const StickerEditorPage = () => {
     updateSelectedTextNode({ fontStyle: nextStyle })
   }
 
-  const deleteSelected = () => {
-    if (!selectedId) return
-    setNodes((prev) => prev.filter((node) => node.id !== selectedId))
-    setSelectedId(null)
+  const requestDeleteNode = (id: string) => {
+    setPendingDeleteId(id)
+  }
+
+  const confirmDeleteNode = () => {
+    if (!pendingDeleteId) return
+    setNodes((prev) => prev.filter((node) => node.id !== pendingDeleteId))
+    setSelectedId((prev) => (prev === pendingDeleteId ? null : prev))
   }
 
   const reorderNodes = (orderedIds: string[]) => {
@@ -260,8 +274,6 @@ const StickerEditorPage = () => {
             onHeightCmChange={setHeightCm}
             onAddText={addTextNode}
             onUploadImage={handleUploadImage}
-            onDeleteSelected={deleteSelected}
-            canDelete={Boolean(selectedId)}
             isCanvasValid={isCanvasValid}
             errorMessage={errorMessage}
             canvasPx={canvasPx}
@@ -278,6 +290,7 @@ const StickerEditorPage = () => {
                 selectedId={selectedId}
                 onSelect={setSelectedId}
                 onReorder={reorderNodes}
+                onDelete={requestDeleteNode}
               />
             </div>
             <div
@@ -385,6 +398,110 @@ const StickerEditorPage = () => {
                       />
                     </div>
                   </label>
+                  <div className="rounded-lg border border-slate-800">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between px-3 py-2 text-xs uppercase tracking-[0.08em] text-slate-300"
+                      onClick={() => setIsStrokeOpen((prev) => !prev)}
+                    >
+                      <span>Stroke</span>
+                      <span className="text-slate-400">
+                        {isStrokeOpen ? '˄' : '˅'}
+                      </span>
+                    </button>
+                    {isStrokeOpen ? (
+                      <div className="flex flex-col gap-3 border-t border-slate-800 px-3 py-3 text-sm text-slate-300">
+                        {(() => {
+                          const strokeEnabled = selectedNode.strokeEnabled ?? false
+                          const strokeColor =
+                            selectedNode.strokeColor ?? DEFAULT_STROKE_COLOR
+                          const strokeWidth =
+                            selectedNode.strokeWidth ?? DEFAULT_STROKE_WIDTH
+                          const strokeJoin =
+                            selectedNode.strokeJoin ?? DEFAULT_STROKE_JOIN
+                          return (<>
+                        <label className="flex items-center justify-between gap-3">
+                          <span>Enable</span>
+                          <input
+                            type="checkbox"
+                            checked={strokeEnabled}
+                            onChange={(event) =>
+                              updateSelectedTextNode({
+                                strokeEnabled: event.target.checked,
+                              })
+                            }
+                            className="h-4 w-4 accent-blue-500"
+                          />
+                        </label>
+                        <label className="flex items-center justify-between gap-3">
+                          <span>Color</span>
+                          <input
+                            type="color"
+                            className="h-8 w-10 cursor-pointer rounded-md border border-slate-700 bg-slate-900"
+                            value={strokeColor}
+                            onChange={(event) =>
+                              updateSelectedTextNode({
+                                strokeColor: event.target.value,
+                              })
+                            }
+                            disabled={!strokeEnabled}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-2">
+                          Thickness
+                          <input
+                            type="range"
+                            min="0"
+                            max="16"
+                            step="0.5"
+                            value={strokeWidth}
+                            onChange={(event) =>
+                              updateSelectedTextNode({
+                                strokeWidth: Number(event.target.value),
+                              })
+                            }
+                            disabled={!strokeEnabled}
+                            className="w-full"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={strokeWidth}
+                            onChange={(event) =>
+                              updateSelectedTextNode({
+                                strokeWidth: Number(event.target.value),
+                              })
+                            }
+                            disabled={!strokeEnabled}
+                            className="w-24 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-200"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-2">
+                          Type
+                          <select
+                            className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-200"
+                            value={strokeJoin}
+                            onChange={(event) =>
+                              updateSelectedTextNode({
+                                strokeJoin: event.target.value as
+                                  | 'miter'
+                                  | 'round'
+                                  | 'bevel',
+                              })
+                            }
+                            disabled={!strokeEnabled}
+                          >
+                            <option value="round">Round</option>
+                            <option value="miter">Miter</option>
+                            <option value="bevel">Bevel</option>
+                          </select>
+                        </label>
+                         </> )
+                        })()}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ) : (
                 <div>Image tools will appear here</div>
@@ -412,6 +529,15 @@ const StickerEditorPage = () => {
         allowBackgroundRemoval={!editingImageId}
         variant={editingImageId ? 'crop-only' : 'full'}
         onAddToCanvas={handleAddImageFromModal}
+      />
+      <ConfirmDialog
+        isOpen={Boolean(pendingDeleteId)}
+        title="Delete layer?"
+        content="This will remove the item from the canvas."
+        confirmText="Delete"
+        confirmVariant="danger"
+        onConfirm={confirmDeleteNode}
+        onClose={() => setPendingDeleteId(null)}
       />
     </div>
   )
