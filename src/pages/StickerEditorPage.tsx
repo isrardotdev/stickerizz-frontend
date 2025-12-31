@@ -32,7 +32,11 @@ const FONT_OPTIONS = [
   'Inter',
 ]
 
-const StickerEditorPage = () => {
+type StickerEditorPageProps = {
+  designId?: string
+}
+
+const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
   const [widthCm, setWidthCm] = useState(DEFAULT_WIDTH_CM)
   const [heightCm, setHeightCm] = useState(DEFAULT_HEIGHT_CM)
   const [nodes, setNodes] = useState<EditorNode[]>([])
@@ -265,7 +269,16 @@ const StickerEditorPage = () => {
   return (
     <div className="flex h-full w-full flex-col">
       <EditorLayout
-        topBar={<span>Stickerizz Editor</span>}
+        topBar={
+          <div className="flex items-center justify-between">
+            <span>Stickerizz Editor</span>
+            {designId ? (
+              <span className="text-xs text-slate-400">Design: {designId}</span>
+            ) : (
+              <span className="text-xs text-slate-400">New design</span>
+            )}
+          </div>
+        }
         toolbar={
           <Toolbar
             widthCm={widthCm}
