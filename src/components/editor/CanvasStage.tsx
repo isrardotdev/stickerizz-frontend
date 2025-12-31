@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { MutableRefObject } from 'react'
 import Konva from 'konva'
 import {
   Image as KonvaImage,
@@ -25,6 +26,7 @@ type CanvasStageProps = {
   onSelect: (id: string | null) => void
   onChange: (node: EditorNode) => void
   onEditImage?: (id: string) => void
+  stageRef?: MutableRefObject<Konva.Stage | null>
   canvasWidth: number
   canvasHeight: number
   isCanvasValid: boolean
@@ -265,12 +267,14 @@ const CanvasStage = ({
   onSelect,
   onChange,
   onEditImage,
+  stageRef: stageRefExternal,
   canvasWidth,
   canvasHeight,
   isCanvasValid,
 }: CanvasStageProps) => {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const stageRef = useRef<Konva.Stage | null>(null)
+  const localStageRef = useRef<Konva.Stage | null>(null)
+  const stageRef = stageRefExternal ?? localStageRef
   const transformerRef = useRef<Konva.Transformer | null>(null)
   const nodeRefs = useRef<Record<string, Konva.Node | null>>({})
   const editingRef = useRef<HTMLTextAreaElement | null>(null)

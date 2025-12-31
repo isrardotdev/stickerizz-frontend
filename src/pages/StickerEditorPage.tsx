@@ -1,5 +1,7 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import type Konva from 'konva'
 import EditorLayout from '../components/editor/EditorLayout'
 import Toolbar from '../components/editor/Toolbar'
 import CanvasStage from '../components/editor/CanvasStage'
@@ -10,6 +12,10 @@ import ImageEditModal from '../components/editor/ImageEditModal'
 import type { EditorNode } from '../components/editor/types'
 import Button from '../components/ui/Button'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
+import { uploadImage } from '../api/assets'
+import { createDesign, getDesign, updateDesign } from '../api/designs'
+import { getTemplate } from '../api/templates'
+import { isEditorDocumentV1 } from '../components/editor/document'
 
 const DEFAULT_WIDTH_CM = '15'
 const DEFAULT_HEIGHT_CM = '15'
@@ -34,9 +40,11 @@ const FONT_OPTIONS = [
 
 type StickerEditorPageProps = {
   designId?: string
+  templateId?: string
 }
 
-const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
+const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => {
+  const navigate = useNavigate()
   const [widthCm, setWidthCm] = useState(DEFAULT_WIDTH_CM)
   const [heightCm, setHeightCm] = useState(DEFAULT_HEIGHT_CM)
   const [nodes, setNodes] = useState<EditorNode[]>([])
@@ -49,6 +57,12 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
   const [rightSplitRatio, setRightSplitRatio] = useState(0.5)
   const [isStrokeOpen, setIsStrokeOpen] = useState(true)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const stageRef = useRef<Konva.Stage | null>(null)
+  const pendingImageBlobsRef = useRef<Record<string, Blob>>({})
+  const sourceTemplateIdRef = useRef<string | null>(null)
 
   const widthValue = parseFloat(widthCm)
   const heightValue = parseFloat(heightCm)
@@ -90,6 +104,7 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
     }
     setNodes((prev) => [...prev, node])
     setSelectedId(id)
+    setIsDirty(true)
   }
 
   const addImageNode = (file: Blob) => {
@@ -97,6 +112,7 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
 
     const id = generateId()
     const objectUrl = URL.createObjectURL(file)
+    pendingImageBlobsRef.current[id] = file
     const image = new Image()
 
     image.onload = () => {
@@ -118,6 +134,7 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
 
       setNodes((prev) => [...prev, node])
       setSelectedId(id)
+      setIsDirty(true)
     }
 
     image.onerror = () => {
@@ -167,6 +184,7 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
     }
 
     const objectUrl = URL.createObjectURL(file)
+    pendingImageBlobsRef.current[editingImageId] = file
     setNodes((prev) =>
       prev.map((node) => {
         if (node.id !== editingImageId || node.type !== 'image') return node
@@ -190,12 +208,14 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
         }
       })
     )
+    setIsDirty(true)
   }
 
   const updateNode = (updatedNode: EditorNode) => {
     setNodes((prev) =>
       prev.map((node) => (node.id === updatedNode.id ? updatedNode : node))
     )
+    setIsDirty(true)
   }
 
   const updateSelectedTextNode = (
@@ -237,6 +257,7 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
         .filter((node): node is EditorNode => Boolean(node))
       return ordered.reverse()
     })
+    setIsDirty(true)
   }
 
   const selectedNode = selectedId
@@ -266,25 +287,168 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
     window.addEventListener('pointerup', handleUp)
   }
 
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!isDirty) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDirty])
+
+  useEffect(() => {
+    const load = async () => {
+      setSaveError(null)
+      setIsDirty(false)
+
+      if (designId) {
+        const design = await getDesign(designId)
+        const doc = design.canvasData
+        if (!isEditorDocumentV1(doc)) {
+          throw new Error('Unsupported design format.')
+        }
+        setWidthCm(doc.canvas.widthCm)
+        setHeightCm(doc.canvas.heightCm)
+        setNodes(doc.nodes)
+        setSelectedId(null)
+        pendingImageBlobsRef.current = {}
+        sourceTemplateIdRef.current = design.sourceTemplateId
+        return
+      }
+
+      if (templateId) {
+        const template = await getTemplate(templateId)
+        const doc = template.canvasData
+        if (!isEditorDocumentV1(doc)) {
+          throw new Error('Unsupported template format.')
+        }
+        setWidthCm(doc.canvas.widthCm)
+        setHeightCm(doc.canvas.heightCm)
+        setNodes(doc.nodes)
+        setSelectedId(null)
+        pendingImageBlobsRef.current = {}
+        sourceTemplateIdRef.current = templateId
+        return
+      }
+
+      sourceTemplateIdRef.current = null
+    }
+
+    load().catch((error) => {
+      setSaveError(error instanceof Error ? error.message : 'Failed to load.')
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [designId, templateId])
+
+  const handleSave = async () => {
+    if (!stageRef.current) {
+      setSaveError('Canvas not ready.')
+      return
+    }
+
+    setIsSaving(true)
+    setSaveError(null)
+
+    try {
+      let nextNodes = nodes
+      const pending = pendingImageBlobsRef.current
+
+      const uploadIds = Object.keys(pending)
+      for (const id of uploadIds) {
+        const blob = pending[id]
+        if (!blob) continue
+        const asset = await uploadImage(blob, `image_${id}.png`)
+        nextNodes = nextNodes.map((node) =>
+          node.id === id && node.type === 'image' ? { ...node, src: asset.url } : node
+        )
+        delete pending[id]
+      }
+
+      const dataUrl = stageRef.current.toDataURL({ pixelRatio: 2 })
+      const previewBlob = await (await fetch(dataUrl)).blob()
+      const previewAsset = await uploadImage(previewBlob, 'preview.png')
+
+      const canvasData = {
+        schemaVersion: 1 as const,
+        canvas: { widthCm, heightCm },
+        nodes: nextNodes,
+        meta: sourceTemplateIdRef.current
+          ? { sourceTemplateId: sourceTemplateIdRef.current }
+          : undefined,
+      }
+
+      if (designId) {
+        await updateDesign(designId, { canvasData, previewUrl: previewAsset.url })
+        setNodes(nextNodes)
+        setIsDirty(false)
+        return
+      }
+
+      const created = await createDesign({
+        canvasData,
+        previewUrl: previewAsset.url,
+        sourceTemplateId: sourceTemplateIdRef.current ?? undefined,
+      })
+      setNodes(nextNodes)
+      setIsDirty(false)
+      navigate(`/canvas/${created.id}`, { replace: true })
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Save failed.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <div className="flex h-full w-full flex-col">
       <EditorLayout
         topBar={
           <div className="flex items-center justify-between">
-            <span>Stickerizz Editor</span>
-            {designId ? (
-              <span className="text-xs text-slate-400">Design: {designId}</span>
-            ) : (
-              <span className="text-xs text-slate-400">New design</span>
-            )}
+            <div className="flex items-center gap-3">
+              <span>Stickerizz Editor</span>
+              {isDirty ? (
+                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-200">
+                  Unsaved
+                </span>
+              ) : null}
+              {saveError ? (
+                <span className="text-xs text-red-300">{saveError}</span>
+              ) : null}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => navigate('/')}
+              >
+                Back
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
           </div>
         }
         toolbar={
           <Toolbar
             widthCm={widthCm}
             heightCm={heightCm}
-            onWidthCmChange={setWidthCm}
-            onHeightCmChange={setHeightCm}
+            onWidthCmChange={(value) => {
+              setWidthCm(value)
+              setIsDirty(true)
+            }}
+            onHeightCmChange={(value) => {
+              setHeightCm(value)
+              setIsDirty(true)
+            }}
             onAddText={addTextNode}
             onUploadImage={handleUploadImage}
             isCanvasValid={isCanvasValid}
@@ -529,6 +693,7 @@ const StickerEditorPage = ({ designId }: StickerEditorPageProps) => {
           onSelect={setSelectedId}
           onChange={updateNode}
           onEditImage={handleEditImage}
+          stageRef={stageRef}
           canvasWidth={canvasPx?.width ?? 0}
           canvasHeight={canvasPx?.height ?? 0}
           isCanvasValid={isCanvasValid}
