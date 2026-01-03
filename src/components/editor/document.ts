@@ -9,6 +9,10 @@ export type EditorDocumentV1 = {
   nodes: EditorNode[]
   meta?: {
     sourceTemplateId?: string
+    previewAssetPublicId?: string
+    previewBytes?: number
+    previewWidth?: number
+    previewHeight?: number
   }
 }
 
@@ -22,4 +26,3 @@ export const isEditorDocumentV1 = (value: unknown): value is EditorDocumentV1 =>
     Array.isArray(doc.nodes)
   )
 }
-

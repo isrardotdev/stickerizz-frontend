@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { MutableRefObject } from 'react'
 import Konva from 'konva'
 import {
+  Circle,
   Image as KonvaImage,
   Layer,
   Rect,
@@ -19,6 +20,7 @@ const FALLBACK_FONT = 'Bebas Neue'
 const FALLBACK_TEXT_COLOR = '#111827'
 const FALLBACK_LETTER_SPACING = 0
 const FALLBACK_STROKE_COLOR = '#0f172a'
+const FALLBACK_SHAPE_FILL = '#60a5fa'
 
 type CanvasStageProps = {
   nodes: EditorNode[]
@@ -145,7 +147,7 @@ const EditorImage = ({
   onDragEnd?: (event: Konva.KonvaEventObject<DragEvent>) => void
   onTransformEnd?: (event: Konva.KonvaEventObject<Event>) => void
 }) => {
-  const [image, status] = useImage(node.src)
+  const [image, status] = useImage(node.src, 'anonymous')
   const transformStateRef = useRef<{
     centerX: number
     centerY: number
@@ -856,6 +858,63 @@ const CanvasStage = ({
           rotation: ref.rotation(),
           fontSize: nextFontSize,
         })
+        continue
+      }
+
+      if (model.type === 'shape') {
+        if (model.shape === 'rect') {
+          const scaleX = ref.scaleX()
+          const scaleY = ref.scaleY()
+          const nextWidth = Math.max(MIN_NODE_SIZE, ref.width() * scaleX)
+          const nextHeight = Math.max(MIN_NODE_SIZE, ref.height() * scaleY)
+          const avgScale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2 || 1
+          const nextCornerRadius = Math.max(0, model.cornerRadius * avgScale)
+
+          ref.scaleX(1)
+          ref.scaleY(1)
+          ref.width(nextWidth)
+          ref.height(nextHeight)
+
+          const clamped = clampNodePosition(ref, canvasWidth, canvasHeight)
+          ref.position(clamped)
+
+          onChange({
+            ...model,
+            x: clamped.x,
+            y: clamped.y,
+            rotation: ref.rotation(),
+            width: nextWidth,
+            height: nextHeight,
+            cornerRadius: nextCornerRadius,
+          })
+          continue
+        }
+
+        if (model.shape === 'circle') {
+          const scaleX = ref.scaleX()
+          const scaleY = ref.scaleY()
+          const nextScale = Math.max(
+            Math.abs(scaleX) || 1,
+            Math.abs(scaleY) || 1
+          )
+          const nextRadius = Math.max(MIN_NODE_SIZE / 2, model.radius * nextScale)
+          ref.scaleX(1)
+          ref.scaleY(1)
+          if (ref instanceof Konva.Circle) {
+            ref.radius(nextRadius)
+          }
+
+          const clamped = clampNodePosition(ref, canvasWidth, canvasHeight)
+          ref.position(clamped)
+
+          onChange({
+            ...model,
+            x: clamped.x,
+            y: clamped.y,
+            rotation: ref.rotation(),
+            radius: nextRadius,
+          })
+        }
       }
     }
 
@@ -980,6 +1039,165 @@ const CanvasStage = ({
                         rotation: target.rotation(),
                         fontSize: nextFontSize,
                       })
+                    }}
+                  />
+                )
+              }
+
+              if (node.type === 'shape') {
+                const strokeEnabled = node.strokeEnabled ?? false
+                const strokeWidth = node.strokeWidth ?? 0
+                const strokeColor = node.strokeColor || FALLBACK_STROKE_COLOR
+                const fill = node.fill || FALLBACK_SHAPE_FILL
+
+                const handleSelect = (
+                  evt: Konva.KonvaEventObject<MouseEvent | TouchEvent>
+                ) => {
+                  const keep = Boolean((evt.evt as MouseEvent).shiftKey)
+                  if (!keep) {
+                    onSelectIds([node.id])
+                    return
+                  }
+                  const next = selectedIds.includes(node.id)
+                    ? selectedIds.filter((id) => id !== node.id)
+                    : [...selectedIds, node.id]
+                  onSelectIds(next)
+                }
+
+                if (node.shape === 'rect') {
+                  return (
+                    <Rect
+                      key={node.id}
+                      id={node.id}
+                      x={node.x}
+                      y={node.y}
+                      width={node.width}
+                      height={node.height}
+                      rotation={node.rotation}
+                      fill={fill}
+                      stroke={strokeEnabled ? strokeColor : undefined}
+                      strokeWidth={strokeEnabled ? strokeWidth : 0}
+                      cornerRadius={node.cornerRadius}
+                      draggable
+                      onClick={handleSelect}
+                      onTap={handleSelect}
+                      dragBoundFunc={createDragBoundFunc(canvasWidth, canvasHeight)}
+                      onDragStart={handleNodeDragStart}
+                      onDragMove={handleNodeDragMove}
+                      onDragEnd={() => {
+                        if (selectedIds.length > 1 && selectedIds.includes(node.id)) {
+                          handleNodeDragEnd()
+                          return
+                        }
+                        const ref = nodeRefs.current[node.id]
+                        if (!ref) return
+                        const clamped = clampNodePosition(ref, canvasWidth, canvasHeight)
+                        ref.position(clamped)
+                        onChange({ ...node, x: clamped.x, y: clamped.y })
+                      }}
+                      onTransformEnd={() => {
+                        if (selectedIds.length > 1 && selectedIds.includes(node.id)) {
+                          return
+                        }
+                        const ref = nodeRefs.current[node.id]
+                        if (!ref) return
+                        const scaleX = ref.scaleX()
+                        const scaleY = ref.scaleY()
+                        const nextWidth = Math.max(MIN_NODE_SIZE, ref.width() * scaleX)
+                        const nextHeight = Math.max(MIN_NODE_SIZE, ref.height() * scaleY)
+                        const avgScale = (Math.abs(scaleX) + Math.abs(scaleY)) / 2 || 1
+                        const nextCornerRadius = Math.max(0, node.cornerRadius * avgScale)
+
+                        ref.scaleX(1)
+                        ref.scaleY(1)
+                        ref.width(nextWidth)
+                        ref.height(nextHeight)
+                        const clamped = clampNodePosition(ref, canvasWidth, canvasHeight)
+                        ref.position(clamped)
+                        onChange({
+                          ...node,
+                          x: clamped.x,
+                          y: clamped.y,
+                          rotation: ref.rotation(),
+                          width: nextWidth,
+                          height: nextHeight,
+                          cornerRadius: nextCornerRadius,
+                        })
+                      }}
+                      ref={(ref) => {
+                        nodeRefs.current[node.id] = ref
+                      }}
+                    />
+                  )
+                }
+
+                return (
+                  <Circle
+                    key={node.id}
+                    id={node.id}
+                    x={node.x}
+                    y={node.y}
+                    radius={node.radius}
+                    rotation={node.rotation}
+                    fill={fill}
+                    stroke={strokeEnabled ? strokeColor : undefined}
+                    strokeWidth={strokeEnabled ? strokeWidth : 0}
+                    draggable
+                    onClick={handleSelect}
+                    onTap={handleSelect}
+                    dragBoundFunc={createDragBoundFunc(canvasWidth, canvasHeight)}
+                    onDragStart={handleNodeDragStart}
+                    onDragMove={handleNodeDragMove}
+                    onDragEnd={() => {
+                      if (selectedIds.length > 1 && selectedIds.includes(node.id)) {
+                        handleNodeDragEnd()
+                        return
+                      }
+                      const ref = nodeRefs.current[node.id]
+                      if (!ref) return
+                      const clamped = clampNodePosition(ref, canvasWidth, canvasHeight)
+                      ref.position(clamped)
+                      onChange({ ...node, x: clamped.x, y: clamped.y })
+                    }}
+                    onTransform={(evt) => {
+                      const target = evt.target
+                      const rawScaleX = target.scaleX()
+                      const rawScaleY = target.scaleY()
+                      const nextScale =
+                        Math.abs(rawScaleX) >= Math.abs(rawScaleY) ? rawScaleX : rawScaleY
+                      target.scaleX(nextScale)
+                      target.scaleY(nextScale)
+                    }}
+                    onTransformEnd={() => {
+                      if (selectedIds.length > 1 && selectedIds.includes(node.id)) {
+                        return
+                      }
+                      const ref = nodeRefs.current[node.id]
+                      if (!ref) return
+                      const scaleX = ref.scaleX()
+                      const scaleY = ref.scaleY()
+                      const nextScale = Math.max(
+                        Math.abs(scaleX) || 1,
+                        Math.abs(scaleY) || 1
+                      )
+                      const nextRadius = Math.max(MIN_NODE_SIZE / 2, node.radius * nextScale)
+                      ref.scaleX(1)
+                      ref.scaleY(1)
+                      if (ref instanceof Konva.Circle) {
+                        ref.radius(nextRadius)
+                      }
+                      const clamped = clampNodePosition(ref, canvasWidth, canvasHeight)
+                      ref.position(clamped)
+                      onChange({
+                        ...node,
+                        x: clamped.x,
+                        y: clamped.y,
+                        rotation: ref.rotation(),
+                        radius: nextRadius,
+                      })
+                    }}
+                    ref={(ref) => {
+                      nodeRefs.current[node.id] = ref
                     }}
                   />
                 )

@@ -1,5 +1,7 @@
+import { useEffect, useRef, useState } from 'react'
 import Button, { buttonClassName } from '../ui/Button'
 import TextInput from '../ui/TextInput'
+import type { ShapeType } from './types'
 
 type ToolbarProps = {
   widthCm: string
@@ -8,6 +10,7 @@ type ToolbarProps = {
   onHeightCmChange: (value: string) => void
   onAddText: () => void
   onUploadImage: (file: File) => void
+  onAddShape: (shape: ShapeType) => void
   isCanvasValid: boolean
   errorMessage: string | null
   canvasPx: { width: number; height: number } | null
@@ -20,11 +23,26 @@ const Toolbar = ({
   onHeightCmChange,
   onAddText,
   onUploadImage,
+  onAddShape,
   isCanvasValid,
   errorMessage,
   canvasPx,
 }: ToolbarProps) => {
   const uploadDisabled = !isCanvasValid
+  const [isShapeMenuOpen, setIsShapeMenuOpen] = useState(false)
+  const shapeMenuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!isShapeMenuOpen) return
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+      if (shapeMenuRef.current?.contains(target)) return
+      setIsShapeMenuOpen(false)
+    }
+    window.addEventListener('pointerdown', handlePointerDown)
+    return () => window.removeEventListener('pointerdown', handlePointerDown)
+  }, [isShapeMenuOpen])
 
   return (
     <div className="flex flex-col gap-4">
@@ -74,6 +92,43 @@ const Toolbar = ({
         >
           Add Text
         </Button>
+        <div ref={shapeMenuRef} className="relative">
+          <Button
+            variant="outline"
+            align="start"
+            onClick={() => setIsShapeMenuOpen((prev) => !prev)}
+            disabled={!isCanvasValid}
+            className="w-full"
+          >
+            Shapes
+          </Button>
+          {isShapeMenuOpen ? (
+            <div className="absolute left-full top-0 z-50 ml-2 w-44 overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-lg">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                onClick={() => {
+                  onAddShape('rect')
+                  setIsShapeMenuOpen(false)
+                }}
+              >
+                <span>Rectangle</span>
+                <span className="text-xs text-slate-400">R</span>
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center justify-between px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+                onClick={() => {
+                  onAddShape('circle')
+                  setIsShapeMenuOpen(false)
+                }}
+              >
+                <span>Circle</span>
+                <span className="text-xs text-slate-400">O</span>
+              </button>
+            </div>
+          ) : null}
+        </div>
         <label
           className={buttonClassName({
             variant: 'outline',

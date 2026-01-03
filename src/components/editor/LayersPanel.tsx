@@ -36,6 +36,9 @@ const getLayerLabel = (node: EditorNode) => {
     const text = node.text.trim()
     return text.length > 0 ? text.slice(0, 28) : 'Text'
   }
+  if (node.type === 'shape') {
+    return node.shape === 'rect' ? 'Rectangle' : 'Circle'
+  }
   return 'Image'
 }
 

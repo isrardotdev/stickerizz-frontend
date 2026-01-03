@@ -1,4 +1,4 @@
-export type NodeType = 'text' | 'image'
+export type NodeType = 'text' | 'image' | 'shape'
 
 export type BaseNode = {
   id: string
@@ -27,9 +27,33 @@ export type ImageNode = BaseNode & {
   src: string
   width: number
   height: number
+  assetPublicId?: string
+  assetOwner?: 'user' | 'template'
 }
 
-export type EditorNode = TextNode | ImageNode
+export type ShapeType = 'rect' | 'circle'
+
+export type ShapeNode = BaseNode & {
+  type: 'shape'
+  shape: ShapeType
+  fill: string
+  strokeEnabled: boolean
+  strokeColor: string
+  strokeWidth: number
+} & (
+    | {
+        shape: 'rect'
+        width: number
+        height: number
+        cornerRadius: number
+      }
+    | {
+        shape: 'circle'
+        radius: number
+      }
+  )
+
+export type EditorNode = TextNode | ImageNode | ShapeNode
 
 export const generateId = () =>
   `node_${Math.random().toString(36).slice(2, 10)}`

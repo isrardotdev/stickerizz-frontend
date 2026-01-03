@@ -9,7 +9,7 @@ import LayersPanel from '../components/editor/LayersPanel'
 import { cmToPx } from '../components/editor/cmPx'
 import { generateId } from '../components/editor/types'
 import ImageEditModal from '../components/editor/ImageEditModal'
-import type { EditorNode } from '../components/editor/types'
+import type { EditorNode, ShapeType } from '../components/editor/types'
 import Button from '../components/ui/Button'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { uploadImage } from '../api/assets'
@@ -25,6 +25,10 @@ const DEFAULT_LETTER_SPACING = 0
 const DEFAULT_STROKE_COLOR = '#0f172a'
 const DEFAULT_STROKE_WIDTH = 2
 const DEFAULT_STROKE_JOIN: 'miter' | 'round' | 'bevel' = 'round'
+const DEFAULT_SHAPE_FILL = '#60a5fa'
+const DEFAULT_SHAPE_STROKE_COLOR = '#0f172a'
+const DEFAULT_SHAPE_STROKE_WIDTH = 2
+const DEFAULT_SHAPE_CORNER_RADIUS = 16
 const FONT_OPTIONS = [
   'Bebas Neue',
   'Anton',
@@ -37,6 +41,12 @@ const FONT_OPTIONS = [
   'Montserrat',
   'Inter',
 ]
+
+type EditorSnapshot = {
+  widthCm: string
+  heightCm: string
+  nodes: EditorNode[]
+}
 
 type StickerEditorPageProps = {
   designId?: string
@@ -63,6 +73,23 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const stageRef = useRef<Konva.Stage | null>(null)
   const pendingImageBlobsRef = useRef<Record<string, Blob>>({})
   const sourceTemplateIdRef = useRef<string | null>(null)
+  const savedHashRef = useRef<string>('')
+  const snapshotRef = useRef<EditorSnapshot>({ widthCm: DEFAULT_WIDTH_CM, heightCm: DEFAULT_HEIGHT_CM, nodes: [] })
+  const historyRef = useRef<{
+    past: EditorSnapshot[]
+    present: EditorSnapshot
+    future: EditorSnapshot[]
+    lastCoalesceKey: string | null
+    lastCoalesceAt: number
+  }>({
+    past: [],
+    present: { widthCm: DEFAULT_WIDTH_CM, heightCm: DEFAULT_HEIGHT_CM, nodes: [] },
+    future: [],
+    lastCoalesceKey: null,
+    lastCoalesceAt: 0,
+  })
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : null
   const selectedNode =
@@ -86,6 +113,109 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     : null
   const maxLetterSpacing = canvasPx ? Math.round(canvasPx.width) : 200
 
+  const hashSnapshot = (snapshot: EditorSnapshot) =>
+    JSON.stringify({ widthCm: snapshot.widthCm, heightCm: snapshot.heightCm, nodes: snapshot.nodes })
+
+  const syncSnapshotRef = (snapshot: EditorSnapshot) => {
+    snapshotRef.current = snapshot
+  }
+
+  const refreshUndoRedoFlags = () => {
+    setCanUndo(historyRef.current.past.length > 0)
+    setCanRedo(historyRef.current.future.length > 0)
+  }
+
+  const applySnapshot = (snapshot: EditorSnapshot) => {
+    setWidthCm(snapshot.widthCm)
+    setHeightCm(snapshot.heightCm)
+    setNodes(snapshot.nodes)
+    setSelectedIds((prev) => {
+      if (prev.length === 0) return prev
+      const ids = new Set(snapshot.nodes.map((node) => node.id))
+      const next = prev.filter((id) => ids.has(id))
+      return next.length ? next : []
+    })
+    syncSnapshotRef(snapshot)
+    setIsDirty(hashSnapshot(snapshot) !== savedHashRef.current)
+  }
+
+  const resetHistory = (snapshot: EditorSnapshot, markSaved: boolean) => {
+    historyRef.current = {
+      past: [],
+      present: snapshot,
+      future: [],
+      lastCoalesceKey: null,
+      lastCoalesceAt: 0,
+    }
+    if (markSaved) {
+      savedHashRef.current = hashSnapshot(snapshot)
+    }
+    applySnapshot(snapshot)
+    refreshUndoRedoFlags()
+  }
+
+  const commitSnapshot = (
+    next: EditorSnapshot,
+    options?: { coalesceKey?: string; coalesceWindowMs?: number }
+  ) => {
+    const now = Date.now()
+    const key = options?.coalesceKey ?? null
+    const windowMs = options?.coalesceWindowMs ?? 450
+    const canCoalesce =
+      key &&
+      historyRef.current.lastCoalesceKey === key &&
+      now - historyRef.current.lastCoalesceAt <= windowMs
+
+    if (!canCoalesce) {
+      historyRef.current.past.push(historyRef.current.present)
+    }
+    historyRef.current.present = next
+    historyRef.current.future = []
+    historyRef.current.lastCoalesceKey = key
+    historyRef.current.lastCoalesceAt = now
+
+    applySnapshot(next)
+    refreshUndoRedoFlags()
+  }
+
+  const patchPresentWithoutHistory = (next: EditorSnapshot) => {
+    historyRef.current.present = next
+    historyRef.current.lastCoalesceKey = null
+    historyRef.current.lastCoalesceAt = 0
+    applySnapshot(next)
+  }
+
+  const undo = () => {
+    const past = historyRef.current.past
+    if (past.length === 0) return
+    const previous = past[past.length - 1]
+    historyRef.current.past = past.slice(0, -1)
+    historyRef.current.future = [historyRef.current.present, ...historyRef.current.future]
+    historyRef.current.present = previous
+    historyRef.current.lastCoalesceKey = null
+    historyRef.current.lastCoalesceAt = 0
+    applySnapshot(previous)
+    refreshUndoRedoFlags()
+  }
+
+  const redo = () => {
+    const future = historyRef.current.future
+    if (future.length === 0) return
+    const next = future[0]
+    historyRef.current.future = future.slice(1)
+    historyRef.current.past = [...historyRef.current.past, historyRef.current.present]
+    historyRef.current.present = next
+    historyRef.current.lastCoalesceKey = null
+    historyRef.current.lastCoalesceAt = 0
+    applySnapshot(next)
+    refreshUndoRedoFlags()
+  }
+
+  useEffect(() => {
+    // Keep snapshotRef in sync for async callbacks.
+    syncSnapshotRef({ widthCm, heightCm, nodes })
+  }, [heightCm, nodes, widthCm])
+
   const addTextNode = () => {
     if (!canvasPx) return
     const id = generateId()
@@ -106,9 +236,12 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       y: canvasPx.height / 2 - 20,
       rotation: 0,
     }
-    setNodes((prev) => [...prev, node])
+    const base = snapshotRef.current
+    commitSnapshot(
+      { ...base, nodes: [...base.nodes, node] },
+      { coalesceKey: `add-node:${id}`, coalesceWindowMs: 0 }
+    )
     setSelectedIds([id])
-    setIsDirty(true)
   }
 
   const addImageNode = (file: Blob) => {
@@ -134,11 +267,15 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         x: (canvasPx.width - width) / 2,
         y: (canvasPx.height - height) / 2,
         rotation: 0,
+        assetOwner: 'user' as const,
       }
 
-      setNodes((prev) => [...prev, node])
+      const base = snapshotRef.current
+      commitSnapshot(
+        { ...base, nodes: [...base.nodes, node] },
+        { coalesceKey: `add-node:${id}`, coalesceWindowMs: 0 }
+      )
       setSelectedIds([id])
-      setIsDirty(true)
     }
 
     image.onerror = () => {
@@ -146,6 +283,59 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     }
 
     image.src = objectUrl
+  }
+
+  const addShapeNode = (shape: ShapeType) => {
+    if (!canvasPx) return
+    const id = generateId()
+
+    if (shape === 'rect') {
+      const width = Math.max(120, canvasPx.width * 0.3)
+      const height = Math.max(90, canvasPx.height * 0.2)
+      const node: EditorNode = {
+        id,
+        type: 'shape',
+        shape: 'rect',
+        width,
+        height,
+        cornerRadius: DEFAULT_SHAPE_CORNER_RADIUS,
+        fill: DEFAULT_SHAPE_FILL,
+        strokeEnabled: false,
+        strokeColor: DEFAULT_SHAPE_STROKE_COLOR,
+        strokeWidth: DEFAULT_SHAPE_STROKE_WIDTH,
+        x: (canvasPx.width - width) / 2,
+        y: (canvasPx.height - height) / 2,
+        rotation: 0,
+      }
+      const base = snapshotRef.current
+      commitSnapshot(
+        { ...base, nodes: [...base.nodes, node] },
+        { coalesceKey: `add-node:${id}`, coalesceWindowMs: 0 }
+      )
+      setSelectedIds([id])
+      return
+    }
+
+    const radius = Math.max(50, Math.min(canvasPx.width, canvasPx.height) * 0.12)
+    const node: EditorNode = {
+      id,
+      type: 'shape',
+      shape: 'circle',
+      radius,
+      fill: DEFAULT_SHAPE_FILL,
+      strokeEnabled: false,
+      strokeColor: DEFAULT_SHAPE_STROKE_COLOR,
+      strokeWidth: DEFAULT_SHAPE_STROKE_WIDTH,
+      x: canvasPx.width / 2,
+      y: canvasPx.height / 2,
+      rotation: 0,
+    }
+    const base = snapshotRef.current
+    commitSnapshot(
+      { ...base, nodes: [...base.nodes, node] },
+      { coalesceKey: `add-node:${id}`, coalesceWindowMs: 0 }
+    )
+    setSelectedIds([id])
   }
 
   const handleUploadImage = (file: File) => {
@@ -189,9 +379,10 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
 
     const objectUrl = URL.createObjectURL(file)
     pendingImageBlobsRef.current[editingImageId] = file
-    setNodes((prev) =>
-      prev.map((node) => {
-        if (node.id !== editingImageId || node.type !== 'image') return node
+    const base = snapshotRef.current
+    const nextNodes = base.nodes.map((node) => {
+        if (node.id !== editingImageId) return node
+        if (node.type !== 'image') return node
         const widthScale =
           cropMeta && cropMeta.originalWidth
             ? cropMeta.width / cropMeta.originalWidth
@@ -209,24 +400,47 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
           height: nextHeight,
           x: node.x + (node.width - nextWidth) / 2,
           y: node.y + (node.height - nextHeight) / 2,
+          assetOwner: 'user' as const,
         }
       })
-    )
-    setIsDirty(true)
+    commitSnapshot({ ...base, nodes: nextNodes }, { coalesceKey: 'image-edit' })
   }
 
-  const updateNode = (updatedNode: EditorNode) => {
-    setNodes((prev) =>
-      prev.map((node) => (node.id === updatedNode.id ? updatedNode : node))
+  const updateNode = (
+    updatedNode: EditorNode,
+    options?: { coalesceKey?: string; coalesceWindowMs?: number }
+  ) => {
+    const base = snapshotRef.current
+    const nextNodes = base.nodes.map((node) =>
+      node.id === updatedNode.id ? updatedNode : node
     )
-    setIsDirty(true)
+    const isMulti = selectedIds.length > 1 && selectedIds.includes(updatedNode.id)
+    commitSnapshot(
+      { ...base, nodes: nextNodes },
+      isMulti
+        ? { coalesceKey: 'multi-transform', coalesceWindowMs: 900 }
+        : options
+    )
   }
 
   const updateSelectedTextNode = (
     updates: Partial<Extract<EditorNode, { type: 'text' }>>
   ) => {
     if (!selectedNode || selectedNode.type !== 'text') return
-    updateNode({ ...selectedNode, ...updates })
+    updateNode(
+      { ...selectedNode, ...updates },
+      { coalesceKey: `text-props:${selectedNode.id}`, coalesceWindowMs: 650 }
+    )
+  }
+
+  const updateSelectedShapeNode = (
+    updates: Partial<Extract<EditorNode, { type: 'shape' }>>
+  ) => {
+    if (!selectedNode || selectedNode.type !== 'shape') return
+    updateNode(
+      { ...selectedNode, ...updates } as EditorNode,
+      { coalesceKey: `shape-props:${selectedNode.id}`, coalesceWindowMs: 650 }
+    )
   }
 
   const toggleTextStyle = (style: 'bold' | 'italic') => {
@@ -251,19 +465,23 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const confirmDeleteNodes = () => {
     if (!pendingDeleteIds?.length) return
     const ids = new Set(pendingDeleteIds)
-    setNodes((prev) => prev.filter((node) => !ids.has(node.id)))
+    const base = snapshotRef.current
+    const nextNodes = base.nodes.filter((node) => !ids.has(node.id))
+    commitSnapshot({ ...base, nodes: nextNodes }, { coalesceKey: 'delete-node', coalesceWindowMs: 0 })
     setSelectedIds((prev) => prev.filter((id) => !ids.has(id)))
+    setPendingDeleteIds(null)
   }
 
   const reorderNodes = (orderedIds: string[]) => {
-    setNodes((prev) => {
-      const lookup = new Map(prev.map((node) => [node.id, node]))
-      const ordered = orderedIds
-        .map((id) => lookup.get(id))
-        .filter((node): node is EditorNode => Boolean(node))
-      return ordered.reverse()
-    })
-    setIsDirty(true)
+    const base = snapshotRef.current
+    const lookup = new Map(base.nodes.map((node) => [node.id, node]))
+    const ordered = orderedIds
+      .map((id) => lookup.get(id))
+      .filter((node): node is EditorNode => Boolean(node))
+    commitSnapshot(
+      { ...base, nodes: ordered.reverse() },
+      { coalesceKey: 'reorder', coalesceWindowMs: 0 }
+    )
   }
 
   const handleSplitDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -302,7 +520,6 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   useEffect(() => {
     const load = async () => {
       setSaveError(null)
-      setIsDirty(false)
 
       if (designId) {
         const design = await getDesign(designId)
@@ -310,9 +527,21 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         if (!isEditorDocumentV1(doc)) {
           throw new Error('Unsupported design format.')
         }
-        setWidthCm(doc.canvas.widthCm)
-        setHeightCm(doc.canvas.heightCm)
-        setNodes(doc.nodes)
+        const defaultOwner: 'template' | 'user' = design.sourceTemplateId
+          ? 'template'
+          : 'user'
+        const snapshot: EditorSnapshot = {
+          widthCm: doc.canvas.widthCm,
+          heightCm: doc.canvas.heightCm,
+          nodes: doc.nodes.map((node) => {
+            if (node.type !== 'image') return node
+            return {
+              ...node,
+              assetOwner: node.assetOwner ?? defaultOwner,
+            }
+          }),
+        }
+        resetHistory(snapshot, true)
         setSelectedIds([])
         pendingImageBlobsRef.current = {}
         sourceTemplateIdRef.current = design.sourceTemplateId
@@ -325,15 +554,30 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         if (!isEditorDocumentV1(doc)) {
           throw new Error('Unsupported template format.')
         }
-        setWidthCm(doc.canvas.widthCm)
-        setHeightCm(doc.canvas.heightCm)
-        setNodes(doc.nodes)
+        const snapshot: EditorSnapshot = {
+          widthCm: doc.canvas.widthCm,
+          heightCm: doc.canvas.heightCm,
+          nodes: doc.nodes.map((node) => {
+            if (node.type !== 'image') return node
+            return {
+              ...node,
+              assetOwner: node.assetOwner ?? 'template',
+            }
+          }),
+        }
+        resetHistory(snapshot, true)
         setSelectedIds([])
         pendingImageBlobsRef.current = {}
         sourceTemplateIdRef.current = templateId
         return
       }
 
+      const snapshot: EditorSnapshot = {
+        widthCm: DEFAULT_WIDTH_CM,
+        heightCm: DEFAULT_HEIGHT_CM,
+        nodes: [],
+      }
+      resetHistory(snapshot, true)
       sourceTemplateIdRef.current = null
     }
 
@@ -348,52 +592,132 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       setSaveError('Canvas not ready.')
       return
     }
+    if (!canvasPx) {
+      setSaveError('Enter a valid canvas size before saving.')
+      return
+    }
 
     setIsSaving(true)
     setSaveError(null)
 
     try {
-      let nextNodes = nodes
+      const baseSnapshot = snapshotRef.current
+      let nextNodes = baseSnapshot.nodes
       const pending = pendingImageBlobsRef.current
 
       const uploadIds = Object.keys(pending)
+      console.info('[editor.save] start', {
+        designId: designId ?? null,
+        pendingImages: uploadIds.length,
+        nodeCount: baseSnapshot.nodes.length,
+      })
       for (const id of uploadIds) {
         const blob = pending[id]
         if (!blob) continue
-        const asset = await uploadImage(blob, `image_${id}.png`)
-        nextNodes = nextNodes.map((node) =>
-          node.id === id && node.type === 'image' ? { ...node, src: asset.url } : node
+        const existingNode = nextNodes.find(
+          (node) => node.id === id && node.type === 'image'
         )
+        if (!existingNode || existingNode.type !== 'image') {
+          delete pending[id]
+          continue
+        }
+        console.info('[editor.save] uploading design image', { nodeId: id, size: blob.size })
+        const asset = await uploadImage(blob, `image_${id}.png`)
+        console.info('[editor.save] uploaded design image', {
+          nodeId: id,
+          publicId: asset.publicId,
+        })
+        nextNodes = nextNodes.map((node) => {
+          if (node.id !== id || node.type !== 'image') return node
+          if (node.src.startsWith('blob:')) {
+            URL.revokeObjectURL(node.src)
+          }
+          return {
+            ...node,
+            src: asset.url,
+            assetPublicId: asset.publicId,
+            assetOwner: 'user' as const,
+          }
+        })
         delete pending[id]
       }
 
-      const dataUrl = stageRef.current.toDataURL({ pixelRatio: 2 })
+      const stage = stageRef.current
+      const previousScale = stage.scale()
+      const previousPosition = stage.position()
+
+      console.info('[editor.save] generating preview', {
+        width: Math.round(canvasPx.width),
+        height: Math.round(canvasPx.height),
+      })
+
+      let dataUrl = ''
+      try {
+        stage.scale({ x: 1, y: 1 })
+        stage.position({ x: 0, y: 0 })
+        stage.batchDraw()
+        dataUrl = stage.toDataURL({
+          x: 0,
+          y: 0,
+          width: canvasPx.width,
+          height: canvasPx.height,
+          pixelRatio: 2,
+        })
+      } finally {
+        stage.scale(previousScale)
+        stage.position(previousPosition)
+        stage.batchDraw()
+      }
+
+      if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+        throw new Error(
+          'Failed to generate preview image. If you have external images, ensure they allow CORS.'
+        )
+      }
       const previewBlob = await (await fetch(dataUrl)).blob()
+      console.info('[editor.save] uploading preview', {
+        size: previewBlob.size,
+      })
       const previewAsset = await uploadImage(previewBlob, 'preview.png')
+      console.info('[editor.save] uploaded preview', { publicId: previewAsset.publicId })
 
       const canvasData = {
         schemaVersion: 1 as const,
-        canvas: { widthCm, heightCm },
+        canvas: { widthCm: baseSnapshot.widthCm, heightCm: baseSnapshot.heightCm },
         nodes: nextNodes,
-        meta: sourceTemplateIdRef.current
-          ? { sourceTemplateId: sourceTemplateIdRef.current }
-          : undefined,
+        meta: {
+          ...(sourceTemplateIdRef.current
+            ? { sourceTemplateId: sourceTemplateIdRef.current }
+            : {}),
+          previewAssetPublicId: previewAsset.publicId,
+          previewBytes: previewBlob.size,
+          previewWidth: previewAsset.width,
+          previewHeight: previewAsset.height,
+        },
       }
 
       if (designId) {
+        console.info('[editor.save] updating design', { designId })
         await updateDesign(designId, { canvasData, previewUrl: previewAsset.url })
-        setNodes(nextNodes)
+        const nextSnapshot: EditorSnapshot = { ...baseSnapshot, nodes: nextNodes }
+        patchPresentWithoutHistory(nextSnapshot)
+        savedHashRef.current = hashSnapshot(nextSnapshot)
         setIsDirty(false)
+        console.info('[editor.save] update complete', { designId })
         return
       }
 
+      console.info('[editor.save] creating design')
       const created = await createDesign({
         canvasData,
         previewUrl: previewAsset.url,
         sourceTemplateId: sourceTemplateIdRef.current ?? undefined,
       })
-      setNodes(nextNodes)
+      const nextSnapshot: EditorSnapshot = { ...baseSnapshot, nodes: nextNodes }
+      patchPresentWithoutHistory(nextSnapshot)
+      savedHashRef.current = hashSnapshot(nextSnapshot)
       setIsDirty(false)
+      console.info('[editor.save] create complete', { designId: created.id })
       navigate(`/canvas/${created.id}`, { replace: true })
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Save failed.')
@@ -401,6 +725,43 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       setIsSaving(false)
     }
   }
+
+  useEffect(() => {
+    const isEditableElementFocused = () => {
+      const active = document.activeElement
+      if (!active) return false
+      if (active instanceof HTMLInputElement) return true
+      if (active instanceof HTMLTextAreaElement) return true
+      if (active instanceof HTMLSelectElement) return true
+      if (active instanceof HTMLElement && active.isContentEditable) return true
+      return false
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isEditableElementFocused()) return
+      const isMeta = event.metaKey || event.ctrlKey
+      if (!isMeta) return
+
+      if (event.key.toLowerCase() === 'z') {
+        event.preventDefault()
+        if (event.shiftKey) {
+          redo()
+        } else {
+          undo()
+        }
+        return
+      }
+
+      if (event.key.toLowerCase() === 'y') {
+        event.preventDefault()
+        redo()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="flex h-full w-full flex-col">
@@ -419,6 +780,24 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
               ) : null}
             </div>
             <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={undo}
+                disabled={!canUndo}
+              >
+                Undo
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={redo}
+                disabled={!canRedo}
+              >
+                Redo
+              </Button>
               <Button
                 type="button"
                 size="sm"
@@ -444,14 +823,21 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
             widthCm={widthCm}
             heightCm={heightCm}
             onWidthCmChange={(value) => {
-              setWidthCm(value)
-              setIsDirty(true)
+              const base = snapshotRef.current
+              commitSnapshot(
+                { ...base, widthCm: value },
+                { coalesceKey: 'canvas-size', coalesceWindowMs: 900 }
+              )
             }}
             onHeightCmChange={(value) => {
-              setHeightCm(value)
-              setIsDirty(true)
+              const base = snapshotRef.current
+              commitSnapshot(
+                { ...base, heightCm: value },
+                { coalesceKey: 'canvas-size', coalesceWindowMs: 900 }
+              )
             }}
             onAddText={addTextNode}
+            onAddShape={addShapeNode}
             onUploadImage={handleUploadImage}
             isCanvasValid={isCanvasValid}
             errorMessage={errorMessage}
@@ -699,6 +1085,133 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                         </label>
                          </> )
                         })()}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              ) : selectedNode.type === 'shape' ? (
+                <div className="flex h-full flex-col gap-4">
+                  <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
+                    Shape Tools
+                  </div>
+                  <div className="text-sm text-slate-200">
+                    {selectedNode.shape === 'rect' ? 'Rectangle' : 'Circle'}
+                  </div>
+
+                  <label className="flex flex-col gap-2 text-sm text-slate-300">
+                    Fill
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        className="h-9 w-12 cursor-pointer rounded-md border border-slate-700 bg-slate-900"
+                        value={selectedNode.fill}
+                        onChange={(event) =>
+                          updateSelectedShapeNode({ fill: event.target.value })
+                        }
+                      />
+                      <span className="text-xs text-slate-400">{selectedNode.fill}</span>
+                    </div>
+                  </label>
+
+                  {selectedNode.shape === 'rect' ? (
+                    <label className="flex flex-col gap-2 text-sm text-slate-300">
+                      Corner radius
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min="0"
+                          max="120"
+                          step="1"
+                          value={selectedNode.cornerRadius}
+                          onChange={(event) =>
+                            updateSelectedShapeNode({
+                              cornerRadius: Number(event.target.value),
+                            })
+                          }
+                          className="w-full"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={selectedNode.cornerRadius}
+                          onChange={(event) =>
+                            updateSelectedShapeNode({
+                              cornerRadius: Number(event.target.value),
+                            })
+                          }
+                          className="w-20 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-200"
+                        />
+                      </div>
+                    </label>
+                  ) : null}
+
+                  <div className="rounded-lg border border-slate-800">
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between px-3 py-2 text-xs uppercase tracking-[0.08em] text-slate-300"
+                      onClick={() => setIsStrokeOpen((prev) => !prev)}
+                    >
+                      <span>Stroke</span>
+                      <span className="text-slate-400">{isStrokeOpen ? '˄' : '˅'}</span>
+                    </button>
+                    {isStrokeOpen ? (
+                      <div className="flex flex-col gap-3 border-t border-slate-800 px-3 py-3 text-sm text-slate-300">
+                        <label className="flex items-center justify-between gap-2">
+                          <span>Enable</span>
+                          <input
+                            type="checkbox"
+                            checked={selectedNode.strokeEnabled}
+                            onChange={(event) =>
+                              updateSelectedShapeNode({
+                                strokeEnabled: event.target.checked,
+                              })
+                            }
+                            className="h-4 w-4"
+                          />
+                        </label>
+                        <label className="flex flex-col gap-2">
+                          Color
+                          <input
+                            type="color"
+                            className="h-9 w-12 cursor-pointer rounded-md border border-slate-700 bg-slate-900"
+                            value={selectedNode.strokeColor}
+                            onChange={(event) =>
+                              updateSelectedShapeNode({ strokeColor: event.target.value })
+                            }
+                            disabled={!selectedNode.strokeEnabled}
+                          />
+                        </label>
+                        <label className="flex flex-col gap-2">
+                          Thickness
+                          <input
+                            type="range"
+                            min="0"
+                            max="32"
+                            step="0.5"
+                            value={selectedNode.strokeWidth}
+                            onChange={(event) =>
+                              updateSelectedShapeNode({
+                                strokeWidth: Number(event.target.value),
+                              })
+                            }
+                            disabled={!selectedNode.strokeEnabled}
+                            className="w-full"
+                          />
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={selectedNode.strokeWidth}
+                            onChange={(event) =>
+                              updateSelectedShapeNode({
+                                strokeWidth: Number(event.target.value),
+                              })
+                            }
+                            disabled={!selectedNode.strokeEnabled}
+                            className="w-24 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-200"
+                          />
+                        </label>
                       </div>
                     ) : null}
                   </div>

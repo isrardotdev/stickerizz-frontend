@@ -275,6 +275,7 @@ const ImageEditModal = ({
   }
 
   const handleAddDirectToCanvas = async () => {
+    console.log("Adding direct to canvas", { area: getActiveCropArea(), variant });
     if (!imageUrl) return
     const area = getActiveCropArea()
     if (!area) return
