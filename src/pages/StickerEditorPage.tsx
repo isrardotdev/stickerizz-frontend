@@ -48,7 +48,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const [widthCm, setWidthCm] = useState(DEFAULT_WIDTH_CM)
   const [heightCm, setHeightCm] = useState(DEFAULT_HEIGHT_CM)
   const [nodes, setNodes] = useState<EditorNode[]>([])
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [editingImageId, setEditingImageId] = useState<string | null>(null)
   const [editingImageSrc, setEditingImageSrc] = useState<string | null>(null)
@@ -56,13 +56,17 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const rightPanelRef = useRef<HTMLDivElement | null>(null)
   const [rightSplitRatio, setRightSplitRatio] = useState(0.5)
   const [isStrokeOpen, setIsStrokeOpen] = useState(true)
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
   const [isDirty, setIsDirty] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const stageRef = useRef<Konva.Stage | null>(null)
   const pendingImageBlobsRef = useRef<Record<string, Blob>>({})
   const sourceTemplateIdRef = useRef<string | null>(null)
+
+  const selectedId = selectedIds.length === 1 ? selectedIds[0] : null
+  const selectedNode =
+    selectedId ? nodes.find((node) => node.id === selectedId) ?? null : null
 
   const widthValue = parseFloat(widthCm)
   const heightValue = parseFloat(heightCm)
@@ -103,7 +107,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       rotation: 0,
     }
     setNodes((prev) => [...prev, node])
-    setSelectedId(id)
+    setSelectedIds([id])
     setIsDirty(true)
   }
 
@@ -133,7 +137,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       }
 
       setNodes((prev) => [...prev, node])
-      setSelectedId(id)
+      setSelectedIds([id])
       setIsDirty(true)
     }
 
@@ -154,7 +158,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const handleEditImage = (id: string) => {
     const node = nodes.find((item) => item.id === id && item.type === 'image')
     if (!node || node.type !== 'image') return
-    setSelectedId(id)
+    setSelectedIds([id])
     setImageFile(null)
     setEditingImageId(id)
     setEditingImageSrc(node.src)
@@ -239,14 +243,16 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     updateSelectedTextNode({ fontStyle: nextStyle })
   }
 
-  const requestDeleteNode = (id: string) => {
-    setPendingDeleteId(id)
+  const requestDeleteNodes = (ids: string[]) => {
+    if (ids.length === 0) return
+    setPendingDeleteIds(ids)
   }
 
-  const confirmDeleteNode = () => {
-    if (!pendingDeleteId) return
-    setNodes((prev) => prev.filter((node) => node.id !== pendingDeleteId))
-    setSelectedId((prev) => (prev === pendingDeleteId ? null : prev))
+  const confirmDeleteNodes = () => {
+    if (!pendingDeleteIds?.length) return
+    const ids = new Set(pendingDeleteIds)
+    setNodes((prev) => prev.filter((node) => !ids.has(node.id)))
+    setSelectedIds((prev) => prev.filter((id) => !ids.has(id)))
   }
 
   const reorderNodes = (orderedIds: string[]) => {
@@ -259,10 +265,6 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     })
     setIsDirty(true)
   }
-
-  const selectedNode = selectedId
-    ? nodes.find((node) => node.id === selectedId) ?? null
-    : null
 
   const handleSplitDragStart = (event: ReactPointerEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -311,7 +313,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         setWidthCm(doc.canvas.widthCm)
         setHeightCm(doc.canvas.heightCm)
         setNodes(doc.nodes)
-        setSelectedId(null)
+        setSelectedIds([])
         pendingImageBlobsRef.current = {}
         sourceTemplateIdRef.current = design.sourceTemplateId
         return
@@ -326,7 +328,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         setWidthCm(doc.canvas.widthCm)
         setHeightCm(doc.canvas.heightCm)
         setNodes(doc.nodes)
-        setSelectedId(null)
+        setSelectedIds([])
         pendingImageBlobsRef.current = {}
         sourceTemplateIdRef.current = templateId
         return
@@ -464,10 +466,10 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
             >
               <LayersPanel
                 nodes={nodes}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
+                selectedIds={selectedIds}
+                onSelect={(id) => setSelectedIds([id])}
                 onReorder={reorderNodes}
-                onDelete={requestDeleteNode}
+                onDelete={(id) => requestDeleteNodes([id])}
               />
             </div>
             <div
@@ -487,7 +489,28 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
               className="p-4 text-sm text-slate-300"
               style={{ flex: `${1 - rightSplitRatio} 1 0%` }}
             >
-              {!selectedNode ? (
+              {selectedIds.length > 1 ? (
+                <div className="flex h-full flex-col gap-4">
+                  <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
+                    Selection
+                  </div>
+                  <div className="text-sm text-slate-200">
+                    {selectedIds.length} items selected
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="danger"
+                    className="w-full"
+                    onClick={() => requestDeleteNodes(selectedIds)}
+                  >
+                    Delete selected
+                  </Button>
+                  <div className="text-xs text-slate-400">
+                    Bulk tools (align, distribute, styles) will appear here.
+                  </div>
+                </div>
+              ) : !selectedNode ? (
                 <div className="text-slate-400">Select an item for options</div>
               ) : selectedNode.type === 'text' ? (
                 <div className="flex h-full flex-col gap-4">
@@ -689,8 +712,8 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       >
         <CanvasStage
           nodes={nodes}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
+          selectedIds={selectedIds}
+          onSelectIds={setSelectedIds}
           onChange={updateNode}
           onEditImage={handleEditImage}
           stageRef={stageRef}
@@ -709,13 +732,21 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         onAddToCanvas={handleAddImageFromModal}
       />
       <ConfirmDialog
-        isOpen={Boolean(pendingDeleteId)}
-        title="Delete layer?"
-        content="This will remove the item from the canvas."
-        confirmText="Delete"
+        isOpen={Boolean(pendingDeleteIds?.length)}
+        title={
+          pendingDeleteIds && pendingDeleteIds.length > 1
+            ? `Delete ${pendingDeleteIds.length} items?`
+            : 'Delete layer?'
+        }
+        content={
+          pendingDeleteIds && pendingDeleteIds.length > 1
+            ? 'This will remove the selected items from the canvas.'
+            : 'This will remove the item from the canvas.'
+        }
+        confirmText={pendingDeleteIds && pendingDeleteIds.length > 1 ? 'Delete all' : 'Delete'}
         confirmVariant="danger"
-        onConfirm={confirmDeleteNode}
-        onClose={() => setPendingDeleteId(null)}
+        onConfirm={confirmDeleteNodes}
+        onClose={() => setPendingDeleteIds(null)}
       />
     </div>
   )

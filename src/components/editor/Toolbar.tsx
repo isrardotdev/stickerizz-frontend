@@ -107,7 +107,9 @@ const Toolbar = ({
         <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
           Hints
         </div>
-        <div className="text-xs text-slate-400">- Drag empty space to pan</div>
+        <div className="text-xs text-slate-400">- Drag on empty canvas to multi-select</div>
+        <div className="text-xs text-slate-400">- Hold Shift to add/remove</div>
+        <div className="text-xs text-slate-400">- Hold Space and drag to pan</div>
         <div className="text-xs text-slate-400">- Scroll to zoom</div>
         <div className="text-xs text-slate-400">- Double click text to edit</div>
       </div>

@@ -12,14 +12,14 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
 import type { EditorNode } from './types'
 
 type LayersPanelProps = {
   nodes: EditorNode[]
-  selectedId: string | null
-  onSelect: (id: string | null) => void
+  selectedIds: string[]
+  onSelect: (id: string) => void
   onReorder: (orderedIds: string[]) => void
   onDelete: (id: string) => void
 }
@@ -109,7 +109,7 @@ const LayerItem = ({ node, isSelected, onSelect, onDelete }: LayerItemProps) => 
   )
 }
 
-const LayersPanel = ({ nodes, selectedId, onSelect, onReorder, onDelete }: LayersPanelProps) => {
+const LayersPanel = ({ nodes, selectedIds, onSelect, onReorder, onDelete }: LayersPanelProps) => {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
   const orderedIds = useMemo(() => nodes.map((node) => node.id).reverse(), [nodes])
@@ -145,7 +145,7 @@ const LayersPanel = ({ nodes, selectedId, onSelect, onReorder, onDelete }: Layer
                 <LayerItem
                   key={node.id}
                   node={node}
-                  isSelected={node.id === selectedId}
+                  isSelected={selectedIds.includes(node.id)}
                   onSelect={() => onSelect(node.id)}
                   onDelete={() => onDelete(node.id)}
                 />
