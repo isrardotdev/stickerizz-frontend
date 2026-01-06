@@ -12,6 +12,8 @@ import ImageEditModal from '../components/editor/ImageEditModal'
 import type { EditorNode, ShapeType } from '../components/editor/types'
 import Button from '../components/ui/Button'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
+import Modal from '../components/ui/Modal'
+import TextInput from '../components/ui/TextInput'
 import { uploadImage } from '../api/assets'
 import { createDesign, getDesign, updateDesign } from '../api/designs'
 import { getTemplate } from '../api/templates'
@@ -90,6 +92,9 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   })
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  const [isCanvasSetupOpen, setIsCanvasSetupOpen] = useState(false)
+  const [canvasSetupWidth, setCanvasSetupWidth] = useState(DEFAULT_WIDTH_CM)
+  const [canvasSetupHeight, setCanvasSetupHeight] = useState(DEFAULT_HEIGHT_CM)
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : null
   const selectedNode =
@@ -579,6 +584,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       }
       resetHistory(snapshot, true)
       sourceTemplateIdRef.current = null
+      setIsCanvasSetupOpen(true)
     }
 
     load().catch((error) => {
@@ -586,6 +592,12 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [designId, templateId])
+
+  useEffect(() => {
+    if (!isCanvasSetupOpen) return
+    setCanvasSetupWidth(snapshotRef.current.widthCm)
+    setCanvasSetupHeight(snapshotRef.current.heightCm)
+  }, [isCanvasSetupOpen])
 
   const handleSave = async () => {
     if (!stageRef.current) {
@@ -1235,6 +1247,89 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
           isCanvasValid={isCanvasValid}
         />
       </EditorLayout>
+      <Modal
+        isOpen={isCanvasSetupOpen && !designId && !templateId}
+        title="Choose canvas size"
+        onClose={() => setIsCanvasSetupOpen(false)}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsCanvasSetupOpen(false)}>
+              Skip
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                const nextWidth = canvasSetupWidth.trim()
+                const nextHeight = canvasSetupHeight.trim()
+                const widthValue = parseFloat(nextWidth)
+                const heightValue = parseFloat(nextHeight)
+                if (!Number.isFinite(widthValue) || widthValue <= 0) return
+                if (!Number.isFinite(heightValue) || heightValue <= 0) return
+                const base = snapshotRef.current
+                commitSnapshot(
+                  { ...base, widthCm: nextWidth, heightCm: nextHeight },
+                  { coalesceKey: 'canvas-size', coalesceWindowMs: 0 }
+                )
+                setIsCanvasSetupOpen(false)
+              }}
+              disabled={
+                !(Number.isFinite(parseFloat(canvasSetupWidth)) && parseFloat(canvasSetupWidth) > 0) ||
+                !(Number.isFinite(parseFloat(canvasSetupHeight)) && parseFloat(canvasSetupHeight) > 0)
+              }
+            >
+              Continue
+            </Button>
+          </div>
+        }
+      >
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="flex flex-col gap-4">
+            <div className="text-sm text-slate-300">
+              Pick the sticker size you want to design. You can still change it later from the left panel.
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="text-xs uppercase tracking-[0.08em] text-slate-400">Canvas size (cm)</div>
+              <div className="flex gap-2">
+                <TextInput
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={canvasSetupWidth}
+                  onChange={(event) => setCanvasSetupWidth(event.target.value)}
+                  placeholder="Width"
+                  autoFocus
+                />
+                <TextInput
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={canvasSetupHeight}
+                  onChange={(event) => setCanvasSetupHeight(event.target.value)}
+                  placeholder="Height"
+                />
+              </div>
+              <div className="text-xs text-slate-400">
+                Common sizes: 5×5cm, 10×10cm, 15×15cm
+              </div>
+            </div>
+          </div>
+          <div className="hidden md:block">
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
+              <div className="text-xs uppercase tracking-[0.08em] text-slate-400">Preview</div>
+              <div className="mt-4 space-y-3 text-sm text-slate-300">
+                <div className="h-3 w-2/3 rounded-full bg-slate-800" />
+                <div className="h-3 w-1/2 rounded-full bg-slate-800" />
+                <div className="h-3 w-3/4 rounded-full bg-slate-800" />
+              </div>
+              <div className="mt-6 text-xs text-slate-400">
+                Mockups (laptop + sticker scale) can be added next.
+              </div>
+            </div>
+          </div>
+        </div>
+      </Modal>
       <ImageEditModal
         file={imageFile}
         sourceUrl={editingImageSrc}

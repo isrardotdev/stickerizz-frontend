@@ -3,6 +3,12 @@ import type { Area } from 'react-easy-crop'
 const loadImage = (source: string) =>
   new Promise<HTMLImageElement>((resolve, reject) => {
     const image = new Image()
+    const isRemote =
+      source.startsWith('http://') || source.startsWith('https://')
+    if (isRemote) {
+      image.crossOrigin = 'anonymous'
+      image.referrerPolicy = 'no-referrer'
+    }
     image.addEventListener('load', () => resolve(image))
     image.addEventListener('error', () => reject(new Error('Failed to load image.')))
     image.src = source

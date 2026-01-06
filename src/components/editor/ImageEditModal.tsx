@@ -289,6 +289,7 @@ const ImageEditModal = ({
       onAddToCanvas(croppedBlob, nextMeta ?? undefined)
       onClose()
     } catch (err) {
+      console.error('[image.edit] crop failed', err)
       setError('Unable to crop the image. Please try again.')
     } finally {
       setIsProcessing(false)
@@ -435,6 +436,7 @@ const ImageEditModal = ({
                     <img
                       ref={cropImageRef}
                       src={imageUrl}
+                      crossOrigin="anonymous"
                       alt="Crop source"
                       className="block max-h-full max-w-full"
                       onLoad={(event) => {
