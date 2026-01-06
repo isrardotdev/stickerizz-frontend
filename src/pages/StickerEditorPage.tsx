@@ -15,6 +15,7 @@ import ConfirmDialog from '../components/ui/ConfirmDialog'
 import Modal from '../components/ui/Modal'
 import TextInput from '../components/ui/TextInput'
 import { uploadImage } from '../api/assets'
+import { createSticker } from '../api/stickers'
 import { createDesign, getDesign, updateDesign } from '../api/designs'
 import { getTemplate } from '../api/templates'
 import { isEditorDocumentV1 } from '../components/editor/document'
@@ -95,6 +96,9 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const [isCanvasSetupOpen, setIsCanvasSetupOpen] = useState(false)
   const [canvasSetupWidth, setCanvasSetupWidth] = useState(DEFAULT_WIDTH_CM)
   const [canvasSetupHeight, setCanvasSetupHeight] = useState(DEFAULT_HEIGHT_CM)
+  const [isSaveOptionsOpen, setIsSaveOptionsOpen] = useState(false)
+  const [isExportPromptOpen, setIsExportPromptOpen] = useState(false)
+  const [isExportingSticker, setIsExportingSticker] = useState(false)
 
   const selectedId = selectedIds.length === 1 ? selectedIds[0] : null
   const selectedNode =
@@ -599,14 +603,14 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     setCanvasSetupHeight(snapshotRef.current.heightCm)
   }, [isCanvasSetupOpen])
 
-  const handleSave = async () => {
+  const saveWorkingFile = async (): Promise<string | null> => {
     if (!stageRef.current) {
       setSaveError('Canvas not ready.')
-      return
+      return null
     }
     if (!canvasPx) {
       setSaveError('Enter a valid canvas size before saving.')
-      return
+      return null
     }
 
     setIsSaving(true)
@@ -716,7 +720,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         savedHashRef.current = hashSnapshot(nextSnapshot)
         setIsDirty(false)
         console.info('[editor.save] update complete', { designId })
-        return
+        return designId
       }
 
       console.info('[editor.save] creating design')
@@ -731,10 +735,122 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       setIsDirty(false)
       console.info('[editor.save] create complete', { designId: created.id })
       navigate(`/canvas/${created.id}`, { replace: true })
+      return created.id
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Save failed.')
+      return null
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const exportStickerBlob = async () => {
+    const stage = stageRef.current
+    const baseSnapshot = snapshotRef.current
+    if (!stage || !canvasPx) return null
+    if (baseSnapshot.nodes.length === 0) return null
+
+    const previousScale = stage.scale()
+    const previousPosition = stage.position()
+    const background = stage.findOne('#canvas_bg')
+    const uiNodes = stage.find('.editor-ui')
+    const previousBackgroundVisible = background?.visible()
+    const previousUiVisible = uiNodes.map((node) => node.visible())
+
+    try {
+      stage.scale({ x: 1, y: 1 })
+      stage.position({ x: 0, y: 0 })
+      if (background) background.visible(false)
+      uiNodes.forEach((node) => node.visible(false))
+      stage.batchDraw()
+
+      const rects = baseSnapshot.nodes
+        .map((node) => stage.findOne(`#${node.id}`))
+        .filter((node): node is Konva.Node => Boolean(node))
+        .map((node) =>
+          node.getClientRect({
+            relativeTo: stage,
+            skipShadow: true,
+            // include stroke for tight export so text strokes don't get clipped
+            skipStroke: false,
+          })
+        )
+        .filter((rect) => rect.width > 0 && rect.height > 0)
+
+      if (rects.length === 0) return null
+
+      const bounds = rects.reduce(
+        (acc, rect) => {
+          const x1 = Math.min(acc.x, rect.x)
+          const y1 = Math.min(acc.y, rect.y)
+          const x2 = Math.max(acc.x + acc.width, rect.x + rect.width)
+          const y2 = Math.max(acc.y + acc.height, rect.y + rect.height)
+          return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 }
+        },
+        { ...rects[0] }
+      )
+
+      const padding = 24
+      const x = Math.max(0, bounds.x - padding)
+      const y = Math.max(0, bounds.y - padding)
+      const maxW = canvasPx.width - x
+      const maxH = canvasPx.height - y
+      const width = Math.min(maxW, bounds.width + padding * 2)
+      const height = Math.min(maxH, bounds.height + padding * 2)
+
+      const pixelRatio = 6
+      const dataUrl = stage.toDataURL({ x, y, width, height, pixelRatio })
+      if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+        throw new Error(
+          'Failed to export sticker image. If you have external images, ensure they allow CORS.'
+        )
+      }
+      const blob = await (await fetch(dataUrl)).blob()
+      return { blob }
+    } finally {
+      stage.scale(previousScale)
+      stage.position(previousPosition)
+      if (background && typeof previousBackgroundVisible === 'boolean') {
+        background.visible(previousBackgroundVisible)
+      }
+      uiNodes.forEach((node, index) => node.visible(previousUiVisible[index] ?? true))
+      stage.batchDraw()
+    }
+  }
+
+  const exportStickerImage = async (opts: { designId?: string } = {}) => {
+    if (!canvasPx) {
+      setSaveError('Enter a valid canvas size before exporting.')
+      return
+    }
+    setIsExportingSticker(true)
+    setSaveError(null)
+
+    try {
+      console.info('[editor.export] generating sticker png')
+      const exportResult = await exportStickerBlob()
+      if (!exportResult) {
+        setSaveError('Add at least one item to export a sticker.')
+        return
+      }
+
+      console.info('[editor.export] uploading sticker png', { size: exportResult.blob.size })
+      const asset = await uploadImage(exportResult.blob, `sticker_${Date.now()}.png`)
+      console.info('[editor.export] uploaded sticker png', { publicId: asset.publicId })
+
+      await createSticker({
+        designId: opts.designId,
+        imageUrl: asset.url,
+        imagePublicId: asset.publicId,
+        widthPx: asset.width,
+        heightPx: asset.height,
+        bytes: exportResult.blob.size,
+      })
+      console.info('[editor.export] saved sticker entry')
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Export failed.')
+    } finally {
+      setIsExportingSticker(false)
     }
   }
 
@@ -822,10 +938,10 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                 type="button"
                 size="sm"
                 variant="primary"
-                onClick={handleSave}
-                disabled={isSaving}
+                onClick={() => setIsSaveOptionsOpen(true)}
+                disabled={isSaving || isExportingSticker}
               >
-                {isSaving ? 'Saving…' : 'Save'}
+                {isSaving || isExportingSticker ? 'Working…' : 'Save'}
               </Button>
             </div>
           </div>
@@ -1247,6 +1363,94 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
           isCanvasValid={isCanvasValid}
         />
       </EditorLayout>
+      <Modal
+        isOpen={isSaveOptionsOpen}
+        title="Save"
+        onClose={() => setIsSaveOptionsOpen(false)}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsSaveOptionsOpen(false)}>
+              Close
+            </Button>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Button
+            type="button"
+            variant="primary"
+            className="w-full"
+            disabled={isSaving || isExportingSticker}
+            onClick={async () => {
+              setIsSaveOptionsOpen(false)
+              await saveWorkingFile()
+            }}
+          >
+            Save working file
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            disabled={isSaving || isExportingSticker}
+            onClick={() => {
+              setIsSaveOptionsOpen(false)
+              if (designId) {
+                void exportStickerImage({ designId })
+                return
+              }
+              setIsExportPromptOpen(true)
+            }}
+          >
+            Save sticker image (PNG)
+          </Button>
+          <div className="text-xs text-slate-400">
+            Sticker images export with a transparent background and tight crop.
+          </div>
+        </div>
+      </Modal>
+      <Modal
+        isOpen={isExportPromptOpen}
+        title="Save design too?"
+        onClose={() => setIsExportPromptOpen(false)}
+      >
+        <div className="flex flex-col gap-4 text-sm text-slate-300">
+          <div>
+            You haven’t saved this as a working file yet. If you don’t save it, you won’t be able to
+            reopen and edit it later.
+          </div>
+          <div className="flex flex-col gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              disabled={isSaving || isExportingSticker}
+              onClick={async () => {
+                setIsExportPromptOpen(false)
+                const id = await saveWorkingFile()
+                if (id) {
+                  await exportStickerImage({ designId: id })
+                }
+              }}
+            >
+              Save design + export sticker
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isSaving || isExportingSticker}
+              onClick={async () => {
+                setIsExportPromptOpen(false)
+                await exportStickerImage()
+              }}
+            >
+              Export only (don’t save design)
+            </Button>
+            <Button type="button" variant="ghost" tone="light" onClick={() => setIsExportPromptOpen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
       <Modal
         isOpen={isCanvasSetupOpen && !designId && !templateId}
         title="Choose canvas size"

@@ -4,6 +4,7 @@ import SignUpPage from '../pages/SignUpPage'
 import DashboardPage from '../pages/DashboardPage'
 import MyGalleryPage from '../pages/MyGalleryPage'
 import TemplatesPage from '../pages/TemplatesPage'
+import MyStickersPage from '../pages/MyStickersPage'
 import CanvasRoutePage from '../pages/CanvasRoutePage'
 import RequireAuth from './RequireAuth'
 import DashboardLayout from '../components/layout/DashboardLayout'
@@ -25,6 +26,7 @@ const AppRoutes = () => {
         <Route index element={<DashboardPage />} />
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="my-gallery" element={<MyGalleryPage />} />
+        <Route path="my-stickers" element={<MyStickersPage />} />
       </Route>
 
       <Route

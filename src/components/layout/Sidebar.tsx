@@ -43,6 +43,7 @@ const Sidebar = () => {
         <SidebarLink to="/" label="Dashboard" />
         <SidebarLink to="/templates" label="Templates" />
         <SidebarLink to="/my-gallery" label="My Gallery" />
+        <SidebarLink to="/my-stickers" label="My Stickers" />
         <SidebarLink to="/canvas" label="New Canvas" />
       </nav>
 
@@ -72,4 +73,3 @@ const Sidebar = () => {
 }
 
 export default Sidebar
-

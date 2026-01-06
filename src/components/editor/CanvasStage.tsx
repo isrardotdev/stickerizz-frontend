@@ -943,6 +943,7 @@ const CanvasStage = ({
         >
           <Layer>
             <Rect
+              id="canvas_bg"
               x={0}
               y={0}
               width={canvasWidth}
@@ -1269,6 +1270,7 @@ const CanvasStage = ({
             <Transformer
               ref={transformerRef}
               rotateEnabled
+              name="editor-ui"
               onTransformEnd={handleTransformerTransformEnd}
               boundBoxFunc={(oldBox, newBox) => {
                 if (newBox.width < MIN_NODE_SIZE || newBox.height < MIN_NODE_SIZE) {
@@ -1289,6 +1291,7 @@ const CanvasStage = ({
                 stroke="rgba(59,130,246,0.8)"
                 strokeWidth={1}
                 dash={[6, 4]}
+                name="editor-ui"
               />
             ) : null}
           </Layer>
