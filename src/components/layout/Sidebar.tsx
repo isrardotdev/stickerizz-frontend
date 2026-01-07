@@ -44,6 +44,7 @@ const Sidebar = () => {
         <SidebarLink to="/templates" label="Templates" />
         <SidebarLink to="/my-gallery" label="My Gallery" />
         <SidebarLink to="/my-stickers" label="My Stickers" />
+        <SidebarLink to="/print" label="Print" />
         <SidebarLink to="/canvas" label="New Canvas" />
       </nav>
 

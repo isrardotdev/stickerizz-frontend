@@ -20,8 +20,8 @@ import { createDesign, getDesign, updateDesign } from '../api/designs'
 import { getTemplate } from '../api/templates'
 import { isEditorDocumentV1 } from '../components/editor/document'
 
-const DEFAULT_WIDTH_CM = '15'
-const DEFAULT_HEIGHT_CM = '15'
+const DEFAULT_WIDTH_CM = '6'
+const DEFAULT_HEIGHT_CM = '6'
 const DEFAULT_TEXT_FONT = 'Bebas Neue'
 const DEFAULT_TEXT_COLOR = '#111827'
 const DEFAULT_LETTER_SPACING = 0
@@ -790,7 +790,9 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         { ...rects[0] }
       )
 
-      const padding = 24
+      // Keep export tightly bounded to visible content.
+      // We already include strokes in bounds, so extra padding would create invisible hit areas on the print sheet.
+      const padding = 2
       const x = Math.max(0, bounds.x - padding)
       const y = Math.max(0, bounds.y - padding)
       const maxW = canvasPx.width - x
@@ -806,7 +808,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         )
       }
       const blob = await (await fetch(dataUrl)).blob()
-      return { blob }
+      return { blob, bounds: { x, y, width, height } }
     } finally {
       stage.scale(previousScale)
       stage.position(previousPosition)
@@ -838,12 +840,25 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       const asset = await uploadImage(exportResult.blob, `sticker_${Date.now()}.png`)
       console.info('[editor.export] uploaded sticker png', { publicId: asset.publicId })
 
+      const widthCmValue = parseFloat(snapshotRef.current.widthCm)
+      const heightCmValue = parseFloat(snapshotRef.current.heightCm)
+      const widthMm =
+        Number.isFinite(widthCmValue) && canvasPx
+          ? (exportResult.bounds.width / canvasPx.width) * (widthCmValue * 10)
+          : undefined
+      const heightMm =
+        Number.isFinite(heightCmValue) && canvasPx
+          ? (exportResult.bounds.height / canvasPx.height) * (heightCmValue * 10)
+          : undefined
+
       await createSticker({
         designId: opts.designId,
         imageUrl: asset.url,
         imagePublicId: asset.publicId,
         widthPx: asset.width,
         heightPx: asset.height,
+        widthMm,
+        heightMm,
         bytes: exportResult.blob.size,
       })
       console.info('[editor.export] saved sticker entry')
@@ -1396,7 +1411,13 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
             onClick={() => {
               setIsSaveOptionsOpen(false)
               if (designId) {
-                void exportStickerImage({ designId })
+                void (async () => {
+                  const shouldSaveFirst =
+                    isDirty || Object.keys(pendingImageBlobsRef.current).length > 0
+                  const latestId = shouldSaveFirst ? await saveWorkingFile() : designId
+                  if (!latestId) return
+                  await exportStickerImage({ designId: latestId })
+                })()
                 return
               }
               setIsExportPromptOpen(true)

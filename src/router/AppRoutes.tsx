@@ -5,6 +5,7 @@ import DashboardPage from '../pages/DashboardPage'
 import MyGalleryPage from '../pages/MyGalleryPage'
 import TemplatesPage from '../pages/TemplatesPage'
 import MyStickersPage from '../pages/MyStickersPage'
+import PrintPage from '../pages/PrintPage'
 import CanvasRoutePage from '../pages/CanvasRoutePage'
 import RequireAuth from './RequireAuth'
 import DashboardLayout from '../components/layout/DashboardLayout'
@@ -27,6 +28,7 @@ const AppRoutes = () => {
         <Route path="templates" element={<TemplatesPage />} />
         <Route path="my-gallery" element={<MyGalleryPage />} />
         <Route path="my-stickers" element={<MyStickersPage />} />
+        <Route path="print" element={<PrintPage />} />
       </Route>
 
       <Route

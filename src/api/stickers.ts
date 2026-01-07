@@ -6,6 +6,8 @@ export type SavedSticker = {
   imageUrl: string
   widthPx: number
   heightPx: number
+  widthMm: number | null
+  heightMm: number | null
   bytes: number | null
   designId: string | null
   createdAt: string
@@ -22,6 +24,8 @@ export const createSticker = async (payload: {
   imagePublicId: string
   widthPx: number
   heightPx: number
+  widthMm?: number
+  heightMm?: number
   bytes?: number
 }) => {
   const response = await apiClient.post<{ sticker: SavedSticker }>(
@@ -34,4 +38,3 @@ export const createSticker = async (payload: {
 export const deleteSticker = async (id: string) => {
   await apiClient.delete(`/api/stickers/${id}`)
 }
-
