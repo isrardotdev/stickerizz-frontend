@@ -48,6 +48,15 @@ const getExpandedRect = (
   height: rect.height + pad * 2,
 })
 
+const getRotatedBounds = (width: number, height: number, rotationDeg: number) => {
+  const theta = (rotationDeg * Math.PI) / 180
+  const cos = Math.cos(theta)
+  const sin = Math.sin(theta)
+  const w = Math.abs(width * cos) + Math.abs(height * sin)
+  const h = Math.abs(width * sin) + Math.abs(height * cos)
+  return { width: w, height: h }
+}
+
 const SheetStickerImage = ({
   sticker,
   placement,
@@ -178,6 +187,98 @@ const PrintPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [printableRect, sheetOriginPx.x, sheetOriginPx.y, scalePxPerMm])
 
+  const stickerLookup = useMemo(() => {
+    return new Map(stickers.map((sticker) => [sticker.id, sticker]))
+  }, [stickers])
+
+  const getPlacementRectPx = (placement: PlacedSticker) => {
+    const sticker = stickerLookup.get(placement.stickerId)
+    if (!sticker?.widthMm || !sticker.heightMm) return null
+
+    const gapPx = Math.max(0, gapMm) * scalePxPerMm
+    const widthPx = mmToPx(sticker.widthMm)
+    const heightPx = mmToPx(sticker.heightMm)
+    const center = {
+      x: sheetOriginPx.x + mmToPx(placement.xMm) + widthPx / 2,
+      y: sheetOriginPx.y + mmToPx(placement.yMm) + heightPx / 2,
+    }
+
+    const rotated = getRotatedBounds(widthPx, heightPx, placement.rotationDeg)
+    const rect = {
+      x: center.x - rotated.width / 2,
+      y: center.y - rotated.height / 2,
+      width: rotated.width,
+      height: rotated.height,
+    }
+
+    return getExpandedRect(rect, gapPx)
+  }
+
+  const validatePlacementRect = (next: PlacedSticker, placements: PlacedSticker[]) => {
+    const rect = getPlacementRectPx(next)
+    if (!rect) return false
+
+    const inside =
+      rect.x >= printableRectPx.x &&
+      rect.y >= printableRectPx.y &&
+      rect.x + rect.width <= printableRectPx.x + printableRectPx.width &&
+      rect.y + rect.height <= printableRectPx.y + printableRectPx.height
+    if (!inside) return false
+
+    for (const other of placements) {
+      if (other.id === next.id) continue
+      const otherRect = getPlacementRectPx(other)
+      if (!otherRect) continue
+      if (rectsIntersect(rect, otherRect)) return false
+    }
+
+    return true
+  }
+
+  const findFirstValidPlacement = (args: {
+    base: PlacedSticker
+    placements: PlacedSticker[]
+    start: { xMm: number; yMm: number }
+  }) => {
+    const { base, placements, start } = args
+    const sticker = stickerLookup.get(base.stickerId)
+    if (!sticker?.widthMm || !sticker.heightMm) return null
+
+    const stepMm = Math.max(2, gapMm)
+    const rings = 140
+    const angles = 24
+
+    const tryAt = (xMm: number, yMm: number) => {
+      const candidate: PlacedSticker = { ...base, xMm, yMm }
+      return validatePlacementRect(candidate, placements) ? candidate : null
+    }
+
+    const direct = tryAt(start.xMm, start.yMm)
+    if (direct) return direct
+
+    const axis = [
+      { dx: stepMm, dy: 0 },
+      { dx: -stepMm, dy: 0 },
+      { dx: 0, dy: stepMm },
+      { dx: 0, dy: -stepMm },
+    ]
+    for (const { dx, dy } of axis) {
+      const found = tryAt(start.xMm + dx, start.yMm + dy)
+      if (found) return found
+    }
+
+    for (let ring = 1; ring <= rings; ring += 1) {
+      const rMm = ring * stepMm
+      for (let i = 0; i < angles; i += 1) {
+        const theta = (i / angles) * Math.PI * 2
+        const found = tryAt(start.xMm + Math.cos(theta) * rMm, start.yMm + Math.sin(theta) * rMm)
+        if (found) return found
+      }
+    }
+
+    return null
+  }
+
   const selectedPlacement = selectedId
     ? placed.find((item) => item.id === selectedId) ?? null
     : null
@@ -231,17 +332,24 @@ const PrintPage = () => {
     }
 
     const id = `placed_${Math.random().toString(36).slice(2, 10)}`
-    const xMm = printableRect.x
-    const yMm = printableRect.y
-    const item: PlacedSticker = {
+    const base: PlacedSticker = {
       id,
       stickerId: sticker.id,
-      xMm,
-      yMm,
+      xMm: printableRect.x,
+      yMm: printableRect.y,
       rotationDeg: 0,
     }
-    setPlaced((prev) => [...prev, item])
-    setSelectedId(id)
+    const found = findFirstValidPlacement({
+      base,
+      placements: placedRef.current,
+      start: { xMm: printableRect.x, yMm: printableRect.y },
+    })
+    if (!found) {
+      window.alert('No space left on the sheet for this sticker.')
+      return
+    }
+    setPlaced((prev) => [...prev, found])
+    setSelectedId(found.id)
     setPdfUrl(null)
   }
 
@@ -451,20 +559,24 @@ const PrintPage = () => {
   const duplicateSelected = () => {
     if (!selectedPlacement) return
     const id = `placed_${Math.random().toString(36).slice(2, 10)}`
-    const item: PlacedSticker = {
+    const base: PlacedSticker = {
       ...selectedPlacement,
       id,
       xMm: selectedPlacement.xMm + (selectedSticker?.widthMm ?? 10) + gapMm,
       yMm: selectedPlacement.yMm,
     }
-    setPlaced((prev) => [...prev, item])
-    setSelectedId(id)
-    setPdfUrl(null)
-    requestAnimationFrame(() => {
-      const node = nodeRefs.current[id]
-      if (!node) return
-      updatePlacement(item, node)
+    const found = findFirstValidPlacement({
+      base,
+      placements: placedRef.current,
+      start: { xMm: base.xMm, yMm: base.yMm },
     })
+    if (!found) {
+      window.alert('No space left on the sheet to duplicate this sticker.')
+      return
+    }
+    setPlaced((prev) => [...prev, found])
+    setSelectedId(found.id)
+    setPdfUrl(null)
   }
 
   const generatePdf = async () => {

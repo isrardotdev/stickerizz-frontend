@@ -17,7 +17,6 @@ export const generateStickerSheetPdf = async (payload: {
   const response = await apiClient.post<{
     pdfUrl: string
     pdfPublicId: string
-  }>('/api/print/sheets', payload)
+  }>('/api/print/sheets', payload, { timeout: 180000 })
   return response.data
 }
-
