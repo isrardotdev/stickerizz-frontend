@@ -20,3 +20,16 @@ export const generateStickerSheetPdf = async (payload: {
   }>('/api/print/sheets', payload, { timeout: 180000 })
   return response.data
 }
+
+export const createPrintCheckoutSession = async (payload: {
+  paperSize: PaperSize
+  marginMm: number
+  placements: SheetPlacement[]
+  quantity: number
+}) => {
+  const response = await apiClient.post<{
+    printJobId: string
+    checkoutUrl: string
+  }>('/api/print/checkout-session', payload, { timeout: 30000 })
+  return response.data
+}

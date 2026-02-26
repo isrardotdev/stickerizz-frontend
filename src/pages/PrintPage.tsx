@@ -6,8 +6,9 @@ import Button from '../components/ui/Button'
 import TextInput from '../components/ui/TextInput'
 import { listStickers } from '../api/stickers'
 import type { SavedSticker } from '../api/stickers'
-import { generateStickerSheetPdf } from '../api/print'
+import { createPrintCheckoutSession } from '../api/print'
 import type { PaperSize } from '../api/print'
+import Modal from '../components/ui/Modal'
 
 type Size = { width: number; height: number }
 
@@ -26,6 +27,10 @@ const PAPER_SIZES: Record<PaperSize, { widthMm: number; heightMm: number }> = {
 
 const DEFAULT_MARGIN_MM = 7
 const DEFAULT_STICKER_GAP_MM = 2
+const UNIT_PRICE_INR: Record<PaperSize, number> = {
+  A4: 300,
+  LETTER: 240,
+}
 
 const rectsIntersect = (
   a: { x: number; y: number; width: number; height: number },
@@ -142,7 +147,8 @@ const PrintPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [isCheckoutConfirmOpen, setIsCheckoutConfirmOpen] = useState(false)
+  const [quantity, setQuantity] = useState(1)
   const [showStickerBounds, setShowStickerBounds] = useState(true)
 
   const paper = PAPER_SIZES[paperSize]
@@ -350,7 +356,6 @@ const PrintPage = () => {
     }
     setPlaced((prev) => [...prev, found])
     setSelectedId(found.id)
-    setPdfUrl(null)
   }
 
   const validatePlacement = (
@@ -553,7 +558,6 @@ const PrintPage = () => {
     if (!selectedId) return
     setPlaced((prev) => prev.filter((item) => item.id !== selectedId))
     setSelectedId(null)
-    setPdfUrl(null)
   }
 
   const duplicateSelected = () => {
@@ -576,16 +580,14 @@ const PrintPage = () => {
     }
     setPlaced((prev) => [...prev, found])
     setSelectedId(found.id)
-    setPdfUrl(null)
   }
 
-  const generatePdf = async () => {
+  const createCheckoutSession = async () => {
     setIsGenerating(true)
     setError(null)
-    setPdfUrl(null)
 
     try {
-      const response = await generateStickerSheetPdf({
+      const response = await createPrintCheckoutSession({
         paperSize,
         marginMm,
         placements: placed.map((item) => ({
@@ -594,10 +596,11 @@ const PrintPage = () => {
           yMm: item.yMm,
           rotationDeg: item.rotationDeg,
         })),
+        quantity,
       })
-      setPdfUrl(response.pdfUrl)
+      window.location.href = response.checkoutUrl
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate PDF.')
+      setError(err instanceof Error ? err.message : 'Failed to create checkout session.')
     } finally {
       setIsGenerating(false)
     }
@@ -670,7 +673,6 @@ const PrintPage = () => {
                   setPaperSize(event.target.value as PaperSize)
                   setPlaced([])
                   setSelectedId(null)
-                  setPdfUrl(null)
                 }}
               >
                 <option value="A4">A4</option>
@@ -699,6 +701,22 @@ const PrintPage = () => {
                 className="w-20"
               />
             </div>
+            <div className="flex items-center gap-2 text-sm text-slate-700">
+              <span className="text-xs uppercase tracking-[0.08em] text-slate-500">Quantity</span>
+              <TextInput
+                type="number"
+                step="1"
+                min="1"
+                max="50"
+                value={String(quantity)}
+                onChange={(event) => {
+                  const next = Number(event.target.value)
+                  if (!Number.isFinite(next)) return
+                  setQuantity(Math.min(50, Math.max(1, Math.floor(next))))
+                }}
+                className="w-20"
+              />
+            </div>
             <label className="flex items-center gap-2 text-sm text-slate-700">
               <input
                 type="checkbox"
@@ -718,7 +736,6 @@ const PrintPage = () => {
               onClick={() => {
                 setPlaced([])
                 setSelectedId(null)
-                setPdfUrl(null)
               }}
             >
               Clear
@@ -727,30 +744,17 @@ const PrintPage = () => {
               type="button"
               variant="primary"
               disabled={placed.length === 0 || isGenerating}
-              onClick={() => void generatePdf()}
+              onClick={() => setIsCheckoutConfirmOpen(true)}
             >
-              {isGenerating ? 'Generating…' : 'Print my sticker sheet'}
+              {isGenerating ? 'Redirecting…' : 'Print my sticker sheet'}
             </Button>
           </div>
         </div>
 
         {error ? <div className="text-sm text-red-600">{error}</div> : null}
-        {pdfUrl ? (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="text-sm text-slate-700">PDF ready.</div>
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-            >
-              Open PDF
-            </a>
-          </div>
-        ) : null}
 
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-          <div ref={containerRef} className="min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+          <div ref={containerRef} className="min-h-130 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
             <Stage
               ref={stageRef}
               width={containerSize.width}
@@ -802,7 +806,6 @@ const PrintPage = () => {
                       onSelect={() => setSelectedId(item.id)}
                       onChange={(next) => {
                         updatePlacement(next)
-                        setPdfUrl(null)
                       }}
                     />
                   )
@@ -846,7 +849,6 @@ const PrintPage = () => {
                         if (!node) return
                         updatePlacement(next, node)
                       })
-                      setPdfUrl(null)
                     }}
                   />
                 </label>
@@ -868,6 +870,56 @@ const PrintPage = () => {
           </aside>
         </div>
       </main>
+      <Modal
+        isOpen={isCheckoutConfirmOpen}
+        title="Confirm Print Order"
+        onClose={() => {
+          if (isGenerating) return
+          setIsCheckoutConfirmOpen(false)
+        }}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsCheckoutConfirmOpen(false)}
+              disabled={isGenerating}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              tone="light"
+              onClick={() => void createCheckoutSession()}
+              disabled={isGenerating}
+            >
+              {isGenerating ? 'Please wait…' : 'Print Order'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3 text-sm text-slate-200">
+          <p>
+            You are about to place a print order for a {paperSize} sheet.
+          </p>
+          <p>
+            Quantity: <span className="font-semibold">{quantity}</span>
+          </p>
+          <p>
+            Price: <span className="font-semibold">INR {UNIT_PRICE_INR[paperSize]} each</span>
+          </p>
+          <p>
+            Total:{' '}
+            <span className="font-semibold">
+              INR {UNIT_PRICE_INR[paperSize] * quantity}
+            </span>
+          </p>
+          <p className="text-xs text-slate-400">
+            You will be redirected to WooCommerce checkout to complete payment.
+          </p>
+        </div>
+      </Modal>
     </div>
   )
 }
