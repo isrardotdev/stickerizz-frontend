@@ -6,7 +6,12 @@ import Button from '../components/ui/Button'
 import TextInput from '../components/ui/TextInput'
 import { listStickers } from '../api/stickers'
 import type { SavedSticker } from '../api/stickers'
-import { createPrintCheckoutSession } from '../api/print'
+import {
+  cancelPendingPrintJob,
+  createPrintCheckoutSession,
+  getLatestPendingPrintJob,
+} from '../api/print'
+import type { PendingPrintJob } from '../api/print'
 import type { PaperSize } from '../api/print'
 import Modal from '../components/ui/Modal'
 
@@ -149,6 +154,9 @@ const PrintPage = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [isCheckoutConfirmOpen, setIsCheckoutConfirmOpen] = useState(false)
   const [quantity, setQuantity] = useState(1)
+  const [pendingJob, setPendingJob] = useState<PendingPrintJob | null>(null)
+  const [isPendingPromptOpen, setIsPendingPromptOpen] = useState(false)
+  const [isResolvingPendingJob, setIsResolvingPendingJob] = useState(false)
   const [showStickerBounds, setShowStickerBounds] = useState(true)
 
   const paper = PAPER_SIZES[paperSize]
@@ -292,6 +300,23 @@ const PrintPage = () => {
     ? stickers.find((sticker) => sticker.id === selectedPlacement.stickerId) ?? null
     : null
 
+  const applyPendingJobPayloadToCanvas = (job: PendingPrintJob) => {
+    const payload = job.payload
+    const restored = payload.placements.map((item) => ({
+      id: `placed_${Math.random().toString(36).slice(2, 10)}`,
+      stickerId: item.stickerId,
+      xMm: item.xMm,
+      yMm: item.yMm,
+      rotationDeg: item.rotationDeg,
+    }))
+    setPaperSize(payload.paperSize)
+    setMarginMm(Math.max(0, payload.marginMm))
+    setPlaced(restored)
+    setSelectedId(restored[0]?.id ?? null)
+    setQuantity(job.quantity > 0 ? job.quantity : payload.quantity ?? 1)
+    setError(null)
+  }
+
   useEffect(() => {
     if (!containerRef.current) return
     const observer = new ResizeObserver((entries) => {
@@ -315,6 +340,27 @@ const PrintPage = () => {
         setError(err instanceof Error ? err.message : 'Failed to load stickers.')
       })
       .finally(() => setIsLoading(false))
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    getLatestPendingPrintJob()
+      .then((job) => {
+        if (cancelled || !job) return
+        setPendingJob(job)
+        setIsPendingPromptOpen(true)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn(
+          '[print] failed to fetch pending print job',
+          err instanceof Error ? err.message : err
+        )
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   useEffect(() => {
@@ -582,11 +628,51 @@ const PrintPage = () => {
     setSelectedId(found.id)
   }
 
+  const handleResumePendingJob = () => {
+    if (!pendingJob) return
+    applyPendingJobPayloadToCanvas(pendingJob)
+    setIsPendingPromptOpen(false)
+    setPendingJob(null)
+  }
+
+  const handleStartNewFromPendingJob = async () => {
+    if (!pendingJob) {
+      setIsPendingPromptOpen(false)
+      return
+    }
+
+    setIsResolvingPendingJob(true)
+    try {
+      await cancelPendingPrintJob(pendingJob.id)
+      setPendingJob(null)
+      setPlaced([])
+      setSelectedId(null)
+      setError(null)
+      setIsPendingPromptOpen(false)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel previous pending order.')
+    } finally {
+      setIsResolvingPendingJob(false)
+    }
+  }
+
+  const continuePendingCheckout = () => {
+    if (!pendingJob?.checkoutUrl) {
+      setError('No checkout URL found for this pending order. Create a fresh order.')
+      return
+    }
+    window.location.href = pendingJob.checkoutUrl
+  }
+
   const createCheckoutSession = async () => {
     setIsGenerating(true)
     setError(null)
 
     try {
+      if (pendingJob?.status === 'PENDING_PAYMENT') {
+        await cancelPendingPrintJob(pendingJob.id)
+        setPendingJob(null)
+      }
       const response = await createPrintCheckoutSession({
         paperSize,
         marginMm,
@@ -598,6 +684,7 @@ const PrintPage = () => {
         })),
         quantity,
       })
+      setIsCheckoutConfirmOpen(false)
       window.location.href = response.checkoutUrl
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create checkout session.')
@@ -752,6 +839,32 @@ const PrintPage = () => {
         </div>
 
         {error ? <div className="text-sm text-red-600">{error}</div> : null}
+        {pendingJob ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <div className="text-sm text-amber-900">
+              You have a pending print order from {new Date(pendingJob.createdAt).toLocaleString()}.
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                tone="light"
+                onClick={handleResumePendingJob}
+              >
+                Restore Layout
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                tone="light"
+                onClick={continuePendingCheckout}
+                disabled={!pendingJob.checkoutUrl}
+              >
+                Continue Payment
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
           <div ref={containerRef} className="min-h-130 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
@@ -870,6 +983,46 @@ const PrintPage = () => {
           </aside>
         </div>
       </main>
+      <Modal
+        isOpen={isPendingPromptOpen && Boolean(pendingJob)}
+        title="Resume Pending Print Order?"
+        onClose={() => {
+          if (isResolvingPendingJob) return
+          setIsPendingPromptOpen(false)
+        }}
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              tone="light"
+              disabled={isResolvingPendingJob}
+              onClick={() => void handleStartNewFromPendingJob()}
+            >
+              {isResolvingPendingJob ? 'Please wait…' : 'Start New'}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              tone="light"
+              disabled={isResolvingPendingJob}
+              onClick={handleResumePendingJob}
+            >
+              Resume
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-2 text-sm text-slate-200">
+          <p>
+            We found a pending print order that has not been paid yet.
+          </p>
+          <p>
+            Choose <span className="font-semibold">Resume</span> to restore the saved layout and continue checkout,
+            or <span className="font-semibold">Start New</span> to cancel it and create a fresh order.
+          </p>
+        </div>
+      </Modal>
       <Modal
         isOpen={isCheckoutConfirmOpen}
         title="Confirm Print Order"
