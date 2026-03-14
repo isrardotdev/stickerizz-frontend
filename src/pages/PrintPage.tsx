@@ -14,6 +14,7 @@ import {
 import type { PendingPrintJob } from '../api/print'
 import type { PaperSize } from '../api/print'
 import Modal from '../components/ui/Modal'
+import { SurfaceCard } from '../components/layout/DashboardPrimitives'
 
 type Size = { width: number; height: number }
 
@@ -694,295 +695,332 @@ const PrintPage = () => {
   }
 
   return (
-    <div className="flex h-full w-full gap-4 px-6 py-6 max-md:flex-col max-md:px-4">
-      <aside className="w-[320px] shrink-0 rounded-2xl border border-slate-200 bg-white p-4 max-md:w-full">
-        <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-          Stickers
-        </div>
-        {isLoading ? (
-          <div className="mt-4 text-sm text-slate-600">Loading…</div>
-        ) : (
-          <div className="mt-4 flex flex-col gap-3">
-            {stickers.length === 0 ? (
-              <div className="text-sm text-slate-600">
-                No saved stickers yet. Export stickers first.
+    <div className="flex flex-col gap-6">
+      <div className="grid gap-6 xl:grid-cols-4">
+        <SurfaceCard className="xl:col-span-1">
+          <h2 className="font-serif text-2xl tracking-tight text-slate-950">Stickers</h2>
+          {isLoading ? (
+            <div className="mt-4 text-sm text-slate-600">Loading…</div>
+          ) : (
+            <div className="mt-4 flex flex-col gap-3">
+              {stickers.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                  No saved stickers yet. Export stickers first.
+                </div>
+              ) : (
+                stickers.map((sticker) => (
+                  <div
+                    key={sticker.id}
+                    className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-slate-50/70 p-3"
+                  >
+                    <div className="h-12 w-12 shrink-0 rounded-2xl bg-white p-2">
+                      <img
+                        src={sticker.imageUrl}
+                        alt={sticker.title ?? 'Sticker'}
+                        className="h-full w-full object-contain"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-slate-900">
+                        {sticker.title ?? 'Sticker'}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {sticker.widthMm && sticker.heightMm
+                          ? `${sticker.widthMm.toFixed(1)}×${sticker.heightMm.toFixed(1)}mm`
+                          : 'Missing print size'}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      tone="light"
+                      onClick={() => addStickerToSheet(sticker)}
+                      disabled={!sticker.widthMm || !sticker.heightMm}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </SurfaceCard>
+
+        <div className="flex min-w-0 flex-col gap-6 xl:col-span-3">
+          <SurfaceCard>
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="font-serif text-2xl tracking-tight text-slate-950">
+                  Sticker sheet
+                </div>
               </div>
-            ) : (
-              stickers.map((sticker) => (
-                <div
-                  key={sticker.id}
-                  className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3"
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  tone="light"
+                  onClick={() => {
+                    setPlaced([])
+                    setSelectedId(null)
+                  }}
                 >
-                  <div className="h-12 w-12 shrink-0 rounded-lg bg-slate-50 p-2">
-                    <img
-                      src={sticker.imageUrl}
-                      alt={sticker.title ?? 'Sticker'}
-                      className="h-full w-full object-contain"
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-slate-900">
-                      {sticker.title ?? 'Sticker'}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {sticker.widthMm && sticker.heightMm
-                        ? `${sticker.widthMm.toFixed(1)}×${sticker.heightMm.toFixed(1)}mm`
-                        : 'Missing print size (re-export)'}
-                    </div>
-                  </div>
+                  Clear sheet
+                </Button>
+                <Button
+                  type="button"
+                  variant="primary"
+                  tone="light"
+                  disabled={placed.length === 0 || isGenerating}
+                  onClick={() => setIsCheckoutConfirmOpen(true)}
+                >
+                  {isGenerating ? 'Redirecting…' : 'Print my sticker sheet'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-4 lg:grid-cols-2 2xl:grid-cols-5">
+              <div className="space-y-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Paper</span>
+                <select
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-500"
+                  value={paperSize}
+                  onChange={(event) => {
+                    setPaperSize(event.target.value as PaperSize)
+                    setPlaced([])
+                    setSelectedId(null)
+                  }}
+                >
+                  <option value="A4">A4</option>
+                  <option value="LETTER">Letter</option>
+                </select>
+              </div>
+
+              <label className="space-y-2 text-sm text-slate-700">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Margin (mm)
+                </span>
+                <TextInput
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={String(marginMm)}
+                  onChange={(event) => setMarginMm(Math.max(0, Number(event.target.value)))}
+                  className="w-full"
+                  tone="light"
+                />
+              </label>
+
+              <label className="space-y-2 text-sm text-slate-700">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Gap (mm)
+                </span>
+                <TextInput
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={String(gapMm)}
+                  onChange={(event) => setGapMm(Math.max(0, Number(event.target.value)))}
+                  className="w-full"
+                  tone="light"
+                />
+              </label>
+
+              <label className="space-y-2 text-sm text-slate-700">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Quantity
+                </span>
+                <TextInput
+                  type="number"
+                  step="1"
+                  min="1"
+                  max="50"
+                  value={String(quantity)}
+                  onChange={(event) => {
+                    const next = Number(event.target.value)
+                    if (!Number.isFinite(next)) return
+                    setQuantity(Math.min(50, Math.max(1, Math.floor(next))))
+                  }}
+                  className="w-full"
+                  tone="light"
+                />
+              </label>
+
+              <label className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={showStickerBounds}
+                  onChange={(event) => setShowStickerBounds(event.target.checked)}
+                  className="h-4 w-4 accent-brand-600"
+                />
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Show bounds
+                </span>
+              </label>
+            </div>
+          </SurfaceCard>
+
+          {error ? (
+            <SurfaceCard className="border-red-200 bg-red-50 text-red-700 ring-0">
+              {error}
+            </SurfaceCard>
+          ) : null}
+          {pendingJob ? (
+            <SurfaceCard className="border-amber-200 bg-amber-50 ring-0">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="text-sm text-amber-900">
+                  You have a pending print order from {new Date(pendingJob.createdAt).toLocaleString()}.
+                </div>
+                <div className="flex items-center gap-2">
                   <Button
                     type="button"
-                    size="sm"
                     variant="outline"
-                    onClick={() => addStickerToSheet(sticker)}
-                    disabled={!sticker.widthMm || !sticker.heightMm}
+                    tone="light"
+                    onClick={handleResumePendingJob}
                   >
-                    Add
+                    Restore layout
                   </Button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-      </aside>
-
-      <main className="flex min-w-0 flex-1 flex-col gap-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="text-sm font-semibold text-slate-900">Sticker Sheet</div>
-            <div className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="text-xs uppercase tracking-[0.08em] text-slate-500">Paper</span>
-              <select
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-sm"
-                value={paperSize}
-                onChange={(event) => {
-                  setPaperSize(event.target.value as PaperSize)
-                  setPlaced([])
-                  setSelectedId(null)
-                }}
-              >
-                <option value="A4">A4</option>
-                <option value="LETTER">Letter</option>
-              </select>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="text-xs uppercase tracking-[0.08em] text-slate-500">Margin (mm)</span>
-              <TextInput
-                type="number"
-                step="1"
-                min="0"
-                value={String(marginMm)}
-                onChange={(event) => setMarginMm(Math.max(0, Number(event.target.value)))}
-                className="w-24"
-              />
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="text-xs uppercase tracking-[0.08em] text-slate-500">Gap (mm)</span>
-              <TextInput
-                type="number"
-                step="1"
-                min="0"
-                value={String(gapMm)}
-                onChange={(event) => setGapMm(Math.max(0, Number(event.target.value)))}
-                className="w-20"
-              />
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-700">
-              <span className="text-xs uppercase tracking-[0.08em] text-slate-500">Quantity</span>
-              <TextInput
-                type="number"
-                step="1"
-                min="1"
-                max="50"
-                value={String(quantity)}
-                onChange={(event) => {
-                  const next = Number(event.target.value)
-                  if (!Number.isFinite(next)) return
-                  setQuantity(Math.min(50, Math.max(1, Math.floor(next))))
-                }}
-                className="w-20"
-              />
-            </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={showStickerBounds}
-                onChange={(event) => setShowStickerBounds(event.target.checked)}
-                className="h-4 w-4"
-              />
-              <span className="text-xs uppercase tracking-[0.08em] text-slate-500">
-                Show bounds
-              </span>
-            </label>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setPlaced([])
-                setSelectedId(null)
-              }}
-            >
-              Clear
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              disabled={placed.length === 0 || isGenerating}
-              onClick={() => setIsCheckoutConfirmOpen(true)}
-            >
-              {isGenerating ? 'Redirecting…' : 'Print my sticker sheet'}
-            </Button>
-          </div>
-        </div>
-
-        {error ? <div className="text-sm text-red-600">{error}</div> : null}
-        {pendingJob ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-            <div className="text-sm text-amber-900">
-              You have a pending print order from {new Date(pendingJob.createdAt).toLocaleString()}.
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                tone="light"
-                onClick={handleResumePendingJob}
-              >
-                Restore Layout
-              </Button>
-              <Button
-                type="button"
-                variant="primary"
-                tone="light"
-                onClick={continuePendingCheckout}
-                disabled={!pendingJob.checkoutUrl}
-              >
-                Continue Payment
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
-          <div ref={containerRef} className="min-h-130 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-            <Stage
-              ref={stageRef}
-              width={containerSize.width}
-              height={containerSize.height}
-              scaleX={1}
-              scaleY={1}
-              x={0}
-              y={0}
-            >
-              <Layer>
-                <Rect
-                  x={sheetOriginPx.x}
-                  y={sheetOriginPx.y}
-                  width={mmToPx(paper.widthMm)}
-                  height={mmToPx(paper.heightMm)}
-                  fill="#ffffff"
-                  stroke="#cbd5e1"
-                  strokeWidth={0.5}
-                  shadowColor="rgba(15,23,42,0.18)"
-                  shadowBlur={12}
-                  shadowOffset={{ x: 0, y: 6 }}
-                />
-                <Rect
-                  x={printableRectPx.x}
-                  y={printableRectPx.y}
-                  width={printableRectPx.width}
-                  height={printableRectPx.height}
-                  stroke="#94a3b8"
-                  strokeWidth={0.4}
-                  dash={[2, 2]}
-                  listening={false}
-                />
-              </Layer>
-              <Layer>
-                {placed.map((item) => {
-                  const sticker = stickers.find((s) => s.id === item.stickerId)
-                  if (!sticker) return null
-                  return (
-                    <SheetStickerImage
-                      key={item.id}
-                      sticker={sticker}
-                      placement={item}
-                      selected={selectedId === item.id}
-                      showBounds={showStickerBounds}
-                      gapMm={gapMm}
-                      sheetOriginPx={sheetOriginPx}
-                      scalePxPerMm={scalePxPerMm}
-                      allNodeRefs={nodeRefs}
-                      onSelect={() => setSelectedId(item.id)}
-                      onChange={(next) => {
-                        updatePlacement(next)
-                      }}
-                    />
-                  )
-                })}
-              </Layer>
-            </Stage>
-          </div>
-
-          <aside className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-              Options
-            </div>
-            {!selectedPlacement || !selectedSticker ? (
-              <div className="mt-4 text-sm text-slate-600">Select a sticker on the sheet.</div>
-            ) : (
-              <div className="mt-4 flex flex-col gap-4">
-                <div className="text-sm font-semibold text-slate-900">
-                  {selectedSticker.title ?? 'Sticker'}
-                </div>
-                <div className="text-xs text-slate-500">
-                  {selectedSticker.widthMm?.toFixed(1)}×{selectedSticker.heightMm?.toFixed(1)}mm
-                </div>
-
-                <label className="flex flex-col gap-2 text-sm text-slate-700">
-                  Rotation ({Math.round(selectedPlacement.rotationDeg)}°)
-                  <input
-                    type="range"
-                    min={-180}
-                    max={180}
-                    step={1}
-                    value={selectedPlacement.rotationDeg}
-                    onChange={(event) => {
-                      const next: PlacedSticker = {
-                        ...selectedPlacement,
-                        rotationDeg: Number(event.target.value),
-                      }
-                      setPlaced((prev) => prev.map((item) => (item.id === next.id ? next : item)))
-                      // validate after the node updates visually
-                      requestAnimationFrame(() => {
-                        const node = nodeRefs.current[next.id]
-                        if (!node) return
-                        updatePlacement(next, node)
-                      })
-                    }}
-                  />
-                </label>
-
-                <div className="flex gap-2">
-                  <Button type="button" variant="outline" className="w-full" onClick={duplicateSelected}>
-                    Duplicate
+                  <Button
+                    type="button"
+                    variant="primary"
+                    tone="light"
+                    onClick={continuePendingCheckout}
+                    disabled={!pendingJob.checkoutUrl}
+                  >
+                    Continue payment
                   </Button>
-                  <Button type="button" variant="danger" className="w-full" onClick={deleteSelected}>
-                    Delete
-                  </Button>
-                </div>
-
-                <div className="text-xs text-slate-500">
-                  Stickers can’t overlap and must stay inside the printable area.
                 </div>
               </div>
-            )}
-          </aside>
+            </SurfaceCard>
+          ) : null}
+
+          <div className="grid min-h-0 gap-6 lg:grid-cols-3">
+            <SurfaceCard className="min-w-0 lg:col-span-2">
+              <div className="mb-4">
+                <h2 className="font-serif text-2xl tracking-tight text-slate-950">Preview</h2>
+              </div>
+              <div
+                ref={containerRef}
+                className="min-h-96 overflow-hidden rounded-3xl border border-slate-200 bg-slate-100"
+              >
+                <Stage
+                  ref={stageRef}
+                  width={containerSize.width}
+                  height={containerSize.height}
+                  scaleX={1}
+                  scaleY={1}
+                  x={0}
+                  y={0}
+                >
+                  <Layer>
+                    <Rect
+                      x={sheetOriginPx.x}
+                      y={sheetOriginPx.y}
+                      width={mmToPx(paper.widthMm)}
+                      height={mmToPx(paper.heightMm)}
+                      fill="#ffffff"
+                      stroke="#cbd5e1"
+                      strokeWidth={0.5}
+                      shadowColor="rgba(15,23,42,0.18)"
+                      shadowBlur={12}
+                      shadowOffset={{ x: 0, y: 6 }}
+                    />
+                    <Rect
+                      x={printableRectPx.x}
+                      y={printableRectPx.y}
+                      width={printableRectPx.width}
+                      height={printableRectPx.height}
+                      stroke="#94a3b8"
+                      strokeWidth={0.4}
+                      dash={[2, 2]}
+                      listening={false}
+                    />
+                  </Layer>
+                  <Layer>
+                    {placed.map((item) => {
+                      const sticker = stickers.find((s) => s.id === item.stickerId)
+                      if (!sticker) return null
+                      return (
+                        <SheetStickerImage
+                          key={item.id}
+                          sticker={sticker}
+                          placement={item}
+                          selected={selectedId === item.id}
+                          showBounds={showStickerBounds}
+                          gapMm={gapMm}
+                          sheetOriginPx={sheetOriginPx}
+                          scalePxPerMm={scalePxPerMm}
+                          allNodeRefs={nodeRefs}
+                          onSelect={() => setSelectedId(item.id)}
+                          onChange={(next) => {
+                            updatePlacement(next)
+                          }}
+                        />
+                      )
+                    })}
+                  </Layer>
+                </Stage>
+              </div>
+            </SurfaceCard>
+
+            <SurfaceCard>
+              <h2 className="font-serif text-2xl tracking-tight text-slate-950">Selection</h2>
+              {!selectedPlacement || !selectedSticker ? (
+                <div className="mt-4 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">
+                  Select a sticker on the sheet.
+                </div>
+              ) : (
+                <div className="mt-4 flex flex-col gap-4">
+                  <div className="text-lg font-semibold text-slate-900">
+                    {selectedSticker.title ?? 'Sticker'}
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {selectedSticker.widthMm?.toFixed(1)}×{selectedSticker.heightMm?.toFixed(1)}mm
+                  </div>
+
+                  <label className="flex flex-col gap-2 text-sm text-slate-700">
+                    Rotation ({Math.round(selectedPlacement.rotationDeg)}°)
+                    <input
+                      type="range"
+                      min={-180}
+                      max={180}
+                      step={1}
+                      value={selectedPlacement.rotationDeg}
+                      onChange={(event) => {
+                        const next: PlacedSticker = {
+                          ...selectedPlacement,
+                          rotationDeg: Number(event.target.value),
+                        }
+                        setPlaced((prev) => prev.map((item) => (item.id === next.id ? next : item)))
+                        requestAnimationFrame(() => {
+                          const node = nodeRefs.current[next.id]
+                          if (!node) return
+                          updatePlacement(next, node)
+                        })
+                      }}
+                      className="accent-brand-600"
+                    />
+                  </label>
+
+                  <div className="flex gap-2">
+                    <Button type="button" variant="outline" tone="light" className="w-full" onClick={duplicateSelected}>
+                      Duplicate
+                    </Button>
+                    <Button type="button" variant="danger" className="w-full" onClick={deleteSelected}>
+                      Delete
+                    </Button>
+                  </div>
+
+                  <div className="text-xs text-slate-500">
+                    Stickers can’t overlap and must stay inside the printable area.
+                  </div>
+                </div>
+              )}
+            </SurfaceCard>
+          </div>
         </div>
-      </main>
+      </div>
       <Modal
         isOpen={isPendingPromptOpen && Boolean(pendingJob)}
         title="Resume Pending Print Order?"
@@ -1013,7 +1051,7 @@ const PrintPage = () => {
           </div>
         }
       >
-        <div className="space-y-2 text-sm text-slate-200">
+        <div className="space-y-2 text-sm leading-6 text-slate-600">
           <p>
             We found a pending print order that has not been paid yet.
           </p>
@@ -1052,7 +1090,7 @@ const PrintPage = () => {
           </div>
         }
       >
-        <div className="space-y-3 text-sm text-slate-200">
+        <div className="space-y-3 text-sm leading-6 text-slate-600">
           <p>
             You are about to place a print order for a {paperSize} sheet.
           </p>
@@ -1068,7 +1106,7 @@ const PrintPage = () => {
               INR {UNIT_PRICE_INR[paperSize] * quantity}
             </span>
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500">
             You will be redirected to WooCommerce checkout to complete payment.
           </p>
         </div>

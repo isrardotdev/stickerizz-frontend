@@ -922,9 +922,12 @@ const CanvasStage = ({
   }
 
   return (
-    <div ref={containerRef} className="relative h-full w-full bg-slate-950">
+    <div
+      ref={containerRef}
+      className="relative h-full w-full bg-[radial-gradient(circle_at_top,rgba(133,57,239,0.10),transparent_24%),linear-gradient(180deg,#faf8fd_0%,#f2edf7_100%)]"
+    >
       {!isCanvasValid ? (
-        <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
+        <div className="flex h-full w-full items-center justify-center text-sm text-slate-500">
           Enter a valid canvas size.
         </div>
       ) : (
@@ -949,9 +952,10 @@ const CanvasStage = ({
               width={canvasWidth}
               height={canvasHeight}
               fill="#ffffff"
-              stroke="#e2e8f0"
-              shadowBlur={16}
-              shadowColor="rgba(0,0,0,0.25)"
+              stroke="#d7d4df"
+              strokeWidth={0.75}
+              shadowBlur={14}
+              shadowColor="rgba(15,23,42,0.10)"
               shadowOffset={{ x: 0, y: 8 }}
               listening={false}
             />

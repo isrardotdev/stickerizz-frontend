@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listDesigns } from '../api/designs'
+import { SurfaceCard } from '../components/layout/DashboardPrimitives'
+import Button from '../components/ui/Button'
 
 const MyGalleryPage = () => {
   const [designs, setDesigns] = useState<
@@ -20,59 +22,70 @@ const MyGalleryPage = () => {
   }, [])
 
   return (
-    <div className="mx-auto w-full max-w-5xl">
-      <div className="mb-6">
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">My Gallery</h1>
-        <p className="mt-1 text-sm text-slate-600">Your saved designs.</p>
-      </div>
-
+    <div className="flex flex-col gap-6">
       {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+        <SurfaceCard className="border-red-200 bg-red-50 text-red-700 ring-0">
           {error}
-        </div>
+        </SurfaceCard>
       ) : null}
 
-      {isLoading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-600">Loading…</div>
+      <SurfaceCard>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-serif text-2xl tracking-tight text-slate-950">My gallery</h2>
+          <Link to="/canvas">
+            <Button tone="light" variant="primary">
+              New design
+            </Button>
+          </Link>
         </div>
-      ) : designs.length === 0 ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="text-sm text-slate-600">No designs yet.</div>
-          <div className="mt-3 text-sm">
-            <Link className="font-medium text-brand-700 hover:underline" to="/canvas">
-              Create your first design
-            </Link>
+
+        {isLoading ? (
+          <div className="mt-6 rounded-3xl border border-slate-200 bg-slate-50 p-5 text-sm text-slate-600">
+            Loading designs…
           </div>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {designs.map((design) => (
-            <Link
-              key={design.id}
-              to={`/canvas/${design.id}`}
-              className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
-            >
-              <div className="aspect-[4/3] w-full bg-slate-100">
-                <img
-                  src={design.previewUrl}
-                  alt={design.title ?? 'Design'}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-              <div className="p-4">
-                <div className="text-sm font-semibold text-slate-900">
-                  {design.title ?? 'Design'}
+        ) : designs.length === 0 ? (
+          <div className="mt-6 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6">
+            <div className="text-sm text-slate-600">No designs yet.</div>
+            <div className="mt-4">
+              <Link to="/canvas">
+                <Button tone="light" variant="outline">
+                  Create your first design
+                </Button>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {designs.map((design) => (
+              <Link
+                key={design.id}
+                to={`/canvas/${design.id}`}
+                className="group overflow-hidden rounded-3xl border border-slate-200 bg-white transition-colors hover:border-brand-200 hover:bg-brand-50/40"
+              >
+                <div className="h-56 border-b border-slate-200 bg-slate-100">
+                  <img
+                    src={design.previewUrl}
+                    alt={design.title ?? 'Design'}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
+                  />
                 </div>
-                <div className="mt-1 text-xs text-slate-500">
-                  Updated {new Date(design.updatedAt).toLocaleString()}
+                <div className="p-5">
+                  <div className="text-lg font-semibold text-slate-900">
+                    {design.title ?? 'Untitled design'}
+                  </div>
+                  <div className="mt-2 text-sm text-slate-500">
+                    Updated {new Date(design.updatedAt).toLocaleString()}
+                  </div>
+                  <div className="mt-4 text-sm font-semibold text-brand-800">
+                    Reopen design
+                  </div>
                 </div>
-              </div>
-            </Link>
-          ))}
-        </div>
-      )}
+              </Link>
+            ))}
+          </div>
+        )}
+      </SurfaceCard>
     </div>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import AuthShell from '../components/layout/AuthShell'
 import Button from '../components/ui/Button'
 import TextInput from '../components/ui/TextInput'
 import { useAppDispatch, useAppSelector } from '../store/hooks'
@@ -17,24 +18,24 @@ const LoginPage = () => {
   useEffect(() => {
     if (!user || status !== 'authenticated') return
     const from = (location.state as { from?: { pathname: string } } | null)?.from?.pathname
-    navigate(from ?? '/dashboard', { replace: true })
+    navigate(from ?? '/', { replace: true })
   }, [location.state, navigate, status, user])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
-      <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-sm">
-        <div className="text-xs font-semibold uppercase tracking-wide text-brand-700">
-          Stickerizz
-        </div>
-        <h1 className="mt-2 text-xl font-semibold tracking-tight text-slate-900">
-          Login
-        </h1>
-        <p className="mt-1 text-sm text-slate-600">
-          Sign in to access templates and your gallery.
-        </p>
-
+    <AuthShell
+      eyebrow="Stickerizz"
+      title="Welcome back"
+      footer={
+        <>
+          Don’t have an account?{' '}
+          <Link className="font-semibold text-brand-800 hover:underline" to="/sign-up">
+            Create one
+          </Link>
+        </>
+      }
+    >
         <form
-          className="mt-5 flex flex-col gap-4"
+          className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
             dispatch(loginThunk({ email, password }))
@@ -48,6 +49,7 @@ const LoginPage = () => {
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="you@example.com"
+              tone="light"
               required
             />
           </label>
@@ -60,31 +62,28 @@ const LoginPage = () => {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••"
+              tone="light"
               required
             />
           </label>
 
-          {error ? <div className="text-sm text-red-600">{error}</div> : null}
+          {error ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          ) : null}
 
           <Button
             type="submit"
             variant="primary"
             tone="light"
             disabled={status === 'loading'}
-            className="w-full"
+            className="mt-1 w-full justify-center border-slate-950 bg-slate-950 text-white shadow-sm hover:bg-slate-800"
           >
-            {status === 'loading' ? 'Signing in…' : 'Login'}
+            {status === 'loading' ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
-
-        <div className="mt-4 text-sm text-slate-600">
-          Don’t have an account?{' '}
-          <Link className="font-medium text-brand-700 hover:underline" to="/sign-up">
-            Sign up
-          </Link>
-        </div>
-      </div>
-    </div>
+    </AuthShell>
   )
 }
 

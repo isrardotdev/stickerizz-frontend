@@ -14,6 +14,8 @@ import {
 } from '@dnd-kit/sortable'
 import { restrictToVerticalAxis } from '@dnd-kit/modifiers'
 import { CSS } from '@dnd-kit/utilities'
+import { HiBars3, HiOutlinePhoto, HiOutlineSquare2Stack, HiOutlineTrash, HiOutlineViewfinderCircle } from 'react-icons/hi2'
+import { TbLetterT } from 'react-icons/tb'
 import type { EditorNode } from './types'
 
 type LayersPanelProps = {
@@ -31,15 +33,35 @@ type LayerItemProps = {
   onDelete: () => void
 }
 
+const getElementTypeLabel = (node: EditorNode) => {
+  if (node.type === 'text') return 'Text'
+  if (node.type === 'shape') return node.shape === 'rect' ? 'Shape' : 'Shape'
+  return 'Image'
+}
+
 const getLayerLabel = (node: EditorNode) => {
   if (node.type === 'text') {
     const text = node.text.trim()
-    return text.length > 0 ? text.slice(0, 28) : 'Text'
+    return text.length > 0 ? text.slice(0, 28) : 'Text block'
   }
   if (node.type === 'shape') {
     return node.shape === 'rect' ? 'Rectangle' : 'Circle'
   }
   return 'Image'
+}
+
+const ElementIcon = ({ node }: { node: EditorNode }) => {
+  if (node.type === 'text') {
+    return <TbLetterT className="h-4 w-4" aria-hidden="true" />
+  }
+  if (node.type === 'shape') {
+    return node.shape === 'rect' ? (
+      <HiOutlineSquare2Stack className="h-4 w-4" aria-hidden="true" />
+    ) : (
+      <HiOutlineViewfinderCircle className="h-4 w-4" aria-hidden="true" />
+    )
+  }
+  return <HiOutlinePhoto className="h-4 w-4" aria-hidden="true" />
 }
 
 const LayerItem = ({ node, isSelected, onSelect, onDelete }: LayerItemProps) => {
@@ -54,10 +76,10 @@ const LayerItem = ({ node, isSelected, onSelect, onDelete }: LayerItemProps) => 
   return (
     <div
       ref={setNodeRef}
-      className={`group grid w-full cursor-grab grid-cols-[20px_52px_1fr_28px] items-center gap-2 rounded-xl border px-3 py-2 text-left text-slate-200 transition-colors active:cursor-grabbing ${
+      className={`group grid w-full cursor-grab grid-cols-[20px_40px_1fr_28px] items-center gap-2 rounded-2xl border px-3 py-3 text-left transition-colors active:cursor-grabbing ${
         isSelected
-          ? 'border-blue-400 bg-slate-800/60 shadow-[0_0_0_1px_rgba(96,165,250,0.4)]'
-          : 'border-slate-700 bg-slate-900 hover:border-blue-500 hover:bg-slate-800/70'
+          ? 'border-brand-200 bg-brand-50 text-slate-900 shadow-sm'
+          : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-brand-200 hover:bg-white'
       }`}
       style={style}
       onClick={onSelect}
@@ -71,15 +93,18 @@ const LayerItem = ({ node, isSelected, onSelect, onDelete }: LayerItemProps) => 
       {...listeners}
     >
       <span className="text-base text-slate-400" aria-hidden="true">
-        ≡
+        <HiBars3 className="h-4 w-4" />
       </span>
-      <span className="text-[11px] uppercase tracking-[0.08em] text-slate-400">
-        {node.type}
+      <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-500">
+        <ElementIcon node={node} />
       </span>
-      <span className="truncate text-sm">{getLayerLabel(node)}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium">{getLayerLabel(node)}</span>
+        <span className="block text-xs text-slate-500">{getElementTypeLabel(node)}</span>
+      </span>
       <button
         type="button"
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-transparent text-slate-400 opacity-0 transition-opacity hover:bg-slate-800 hover:text-slate-200 group-hover:opacity-100 group-focus-within:opacity-100 max-[900px]:opacity-100"
+        className="flex h-7 w-7 items-center justify-center rounded-xl border border-transparent text-slate-400 opacity-0 transition-opacity hover:bg-slate-100 hover:text-slate-700 group-hover:opacity-100 group-focus-within:opacity-100 max-[900px]:opacity-100"
         onPointerDown={(event) => {
           event.stopPropagation()
         }}
@@ -91,22 +116,7 @@ const LayerItem = ({ node, isSelected, onSelect, onDelete }: LayerItemProps) => 
         aria-label="Delete layer"
         title="Delete"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-4 w-4"
-          aria-hidden="true"
-        >
-          <path d="M3 6h18" />
-          <path d="M8 6V4h8v2" />
-          <path d="M19 6l-1 14H6L5 6" />
-          <path d="M10 11v6" />
-          <path d="M14 11v6" />
-        </svg>
+        <HiOutlineTrash className="h-4 w-4" aria-hidden="true" />
       </button>
     </div>
   )
@@ -122,9 +132,9 @@ const LayersPanel = ({ nodes, selectedIds, onSelect, onReorder, onDelete }: Laye
   )
 
   return (
-    <div className="flex h-full flex-col text-slate-200">
-      <div className="border-b border-slate-800 px-4 py-3 text-xs uppercase tracking-[0.08em] text-slate-400">
-        <span>Layers</span>
+    <div className="flex h-full flex-col text-slate-700">
+      <div className="border-b border-slate-200 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <span>Elements</span>
       </div>
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-3">
         <DndContext
@@ -157,8 +167,8 @@ const LayersPanel = ({ nodes, selectedIds, onSelect, onReorder, onDelete }: Laye
           </SortableContext>
         </DndContext>
       </div>
-      <div className="border-t border-slate-800 px-4 py-2 text-xs text-slate-400">
-        Drag layers to reorder the z-index.
+      <div className="border-t border-slate-200 px-4 py-3 text-xs text-slate-500">
+        Drag items up or down to change what appears in front.
       </div>
     </div>
   )

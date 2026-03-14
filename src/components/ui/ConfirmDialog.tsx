@@ -30,12 +30,13 @@ const ConfirmDialog = ({
       onClose={onClose}
       footer={
         <div className="flex justify-end gap-2.5">
-          <Button type="button" variant="ghost" onClick={onClose}>
+          <Button type="button" variant="ghost" tone="light" onClick={onClose}>
             {cancelText}
           </Button>
           <Button
             type="button"
             variant={confirmVariant}
+            tone="light"
             onClick={() => {
               onConfirm()
               onClose()
@@ -46,10 +47,9 @@ const ConfirmDialog = ({
         </div>
       }
     >
-      <div className="text-sm text-slate-300">{content}</div>
+      <div className="text-sm leading-6 text-slate-600">{content}</div>
     </Modal>
   )
 }
 
 export default ConfirmDialog
-

@@ -401,6 +401,7 @@ const ImageEditModal = ({
           <Button
             type="button"
             variant="primary"
+            tone="light"
             onClick={handleRemoveBackground}
             disabled={isProcessing || !imageUrl}
           >
@@ -410,10 +411,10 @@ const ImageEditModal = ({
       </div>
     ) : (
       <div className="flex justify-end gap-2.5">
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button type="button" variant="ghost" tone="light" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="button" variant="primary" onClick={handleAddToCanvas}>
+        <Button type="button" variant="primary" tone="light" onClick={handleAddToCanvas}>
           Add to canvas
         </Button>
       </div>
@@ -428,7 +429,7 @@ const ImageEditModal = ({
     >
       {step === 'crop' || variant === 'crop-only' ? (
         <div className="flex flex-col gap-4">
-          <div className={cn("relative overflow-hidden rounded-xl border border-slate-800 bg-slate-950", variant === 'crop-only' ? 'h-auto' : 'h-[360px]')}>
+          <div className={cn("relative overflow-hidden rounded-3xl border border-slate-200 bg-slate-950", variant === 'crop-only' ? 'h-auto' : 'h-[360px]')}>
             {imageUrl ? (
               variant === 'crop-only' ? (
                 <div className="relative flex h-full w-full items-center justify-center">

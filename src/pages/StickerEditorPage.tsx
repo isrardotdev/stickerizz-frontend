@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type Konva from 'konva'
+import { HiArrowUturnLeft, HiArrowUturnRight } from 'react-icons/hi2'
 import EditorLayout from '../components/editor/EditorLayout'
 import Toolbar from '../components/editor/Toolbar'
 import CanvasStage from '../components/editor/CanvasStage'
@@ -44,6 +45,13 @@ const FONT_OPTIONS = [
   'Montserrat',
   'Inter',
 ]
+
+const inspectorLabelClass = 'flex flex-col gap-2 text-sm text-slate-700'
+const inspectorInputClass =
+  'w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900'
+const inspectorNumberClass =
+  'rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900'
+const inspectorPanelClass = 'rounded-3xl border border-slate-200 bg-slate-50/80 p-4'
 
 type EditorSnapshot = {
   widthCm: string
@@ -231,7 +239,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     const node: EditorNode = {
       id,
       type: 'text',
-      text: 'Double click to edit',
+      text: 'Double-click to edit',
       fontSize: 28,
       fontFamily: DEFAULT_TEXT_FONT,
       fontStyle: 'normal',
@@ -910,87 +918,77 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     <div className="flex h-full w-full flex-col">
       <EditorLayout
         topBar={
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span>Stickerizz Editor</span>
+              <Button
+                type="button"
+                size="sm"
+                variant="primary"
+                tone="light"
+                className="border-slate-950 bg-slate-950 text-white shadow-sm hover:bg-slate-800"
+                onClick={() => setIsSaveOptionsOpen(true)}
+                disabled={isSaving || isExportingSticker}
+              >
+                {isSaving || isExportingSticker ? 'Working…' : 'Save design'}
+              </Button>
               {isDirty ? (
-                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-200">
+                <span className="rounded-full bg-brand-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-brand-800">
                   Unsaved
                 </span>
               ) : null}
               {saveError ? (
-                <span className="text-xs text-red-300">{saveError}</span>
+                <span className="text-xs text-red-600">{saveError}</span>
               ) : null}
             </div>
             <div className="flex items-center gap-2">
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="ghost"
+                tone="light"
                 onClick={undo}
                 disabled={!canUndo}
+                className="h-10 w-10 p-0"
+                aria-label="Undo"
+                title="Undo"
               >
-                Undo
+                <HiArrowUturnLeft className="h-4 w-4" aria-hidden="true" />
               </Button>
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="ghost"
+                tone="light"
                 onClick={redo}
                 disabled={!canRedo}
+                className="h-10 w-10 p-0"
+                aria-label="Redo"
+                title="Redo"
               >
-                Redo
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => navigate('/')}
-              >
-                Back
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="primary"
-                onClick={() => setIsSaveOptionsOpen(true)}
-                disabled={isSaving || isExportingSticker}
-              >
-                {isSaving || isExportingSticker ? 'Working…' : 'Save'}
+                <HiArrowUturnRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
         }
         toolbar={
           <Toolbar
-            widthCm={widthCm}
-            heightCm={heightCm}
-            onWidthCmChange={(value) => {
-              const base = snapshotRef.current
-              commitSnapshot(
-                { ...base, widthCm: value },
-                { coalesceKey: 'canvas-size', coalesceWindowMs: 900 }
-              )
-            }}
-            onHeightCmChange={(value) => {
-              const base = snapshotRef.current
-              commitSnapshot(
-                { ...base, heightCm: value },
-                { coalesceKey: 'canvas-size', coalesceWindowMs: 900 }
-              )
+            onBack={() => navigate('/')}
+            onOpenCanvasSize={() => {
+              setCanvasSetupWidth(widthCm)
+              setCanvasSetupHeight(heightCm)
+              setIsCanvasSetupOpen(true)
             }}
             onAddText={addTextNode}
             onAddShape={addShapeNode}
             onUploadImage={handleUploadImage}
             isCanvasValid={isCanvasValid}
             errorMessage={errorMessage}
-            canvasPx={canvasPx}
           />
         }
         rightPanel={
           <div ref={rightPanelRef} className="flex h-full flex-col">
             <div
-              className="border-b border-slate-800"
+              className="border-b border-slate-200"
               style={{ flex: `${rightSplitRatio} 1 0%` }}
             >
               <LayersPanel
@@ -1005,25 +1003,25 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
               className="relative h-6 w-full cursor-row-resize touch-none"
               onPointerDown={handleSplitDragStart}
             >
-              <div className="absolute left-1/2 top-1/2 h-4 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-700 bg-slate-900 text-[10px] text-slate-400">
+              <div className="absolute left-1/2 top-1/2 h-4 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white text-[10px] text-slate-400">
                 <div className="flex h-full items-center justify-center gap-1">
                   <span className="h-1 w-1 rounded-full bg-slate-500" />
                   <span className="h-1 w-1 rounded-full bg-slate-500" />
                   <span className="h-1 w-1 rounded-full bg-slate-500" />
                 </div>
               </div>
-              <div className="absolute left-0 top-1/2 h-0.5 w-full -translate-y-1/2 bg-slate-800" />
+              <div className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-slate-200" />
             </div>
             <div
-              className="p-4 text-sm text-slate-300"
+              className="overflow-y-auto p-4 text-sm text-slate-700"
               style={{ flex: `${1 - rightSplitRatio} 1 0%` }}
             >
               {selectedIds.length > 1 ? (
                 <div className="flex h-full flex-col gap-4">
-                  <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                     Selection
                   </div>
-                  <div className="text-sm text-slate-200">
+                  <div className="text-sm text-slate-900">
                     {selectedIds.length} items selected
                   </div>
                   <Button
@@ -1035,22 +1033,25 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                   >
                     Delete selected
                   </Button>
-                  <div className="text-xs text-slate-400">
-                    Bulk tools (align, distribute, styles) will appear here.
+                  <div className="text-xs text-slate-500">
+                    More multi-select actions can be added here.
                   </div>
                 </div>
               ) : !selectedNode ? (
-                <div className="text-slate-400">Select an item for options</div>
+                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-4 text-slate-500">
+                  Select an item to change its settings.
+                </div>
               ) : selectedNode.type === 'text' ? (
                 <div className="flex h-full flex-col gap-4">
-                  <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
-                    Text Tools
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Text
                   </div>
                   <div className="flex gap-2">
                     <Button
                       type="button"
                       size="sm"
                       variant={selectedNode.fontStyle.includes('bold') ? 'primary' : 'outline'}
+                      tone="light"
                       onClick={() => toggleTextStyle('bold')}
                       className="w-full"
                     >
@@ -1060,16 +1061,17 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                       type="button"
                       size="sm"
                       variant={selectedNode.fontStyle.includes('italic') ? 'primary' : 'outline'}
+                      tone="light"
                       onClick={() => toggleTextStyle('italic')}
                       className="w-full"
                     >
                       Italic
                     </Button>
                   </div>
-                  <label className="flex flex-col gap-2 text-sm text-slate-300">
+                  <label className={inspectorLabelClass}>
                     Font
                     <select
-                      className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-200"
+                      className={inspectorInputClass}
                       value={selectedNode.fontFamily}
                       onChange={(event) =>
                         updateSelectedTextNode({ fontFamily: event.target.value })
@@ -1082,23 +1084,23 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                       ))}
                     </select>
                   </label>
-                  <label className="flex flex-col gap-2 text-sm text-slate-300">
+                  <label className={inspectorLabelClass}>
                     Color
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
-                        className="h-9 w-12 cursor-pointer rounded-md border border-slate-700 bg-slate-900"
+                        className="h-10 w-12 cursor-pointer rounded-2xl border border-slate-200 bg-white"
                         value={selectedNode.fill}
                         onChange={(event) =>
                           updateSelectedTextNode({ fill: event.target.value })
                         }
                       />
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-500">
                         {selectedNode.fill}
                       </span>
                     </div>
                   </label>
-                  <label className="flex flex-col gap-2 text-sm text-slate-300">
+                  <label className={inspectorLabelClass}>
                     Letter spacing
                     <div className="flex items-center gap-3">
                       <input
@@ -1123,14 +1125,14 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                             letterSpacing: Number(event.target.value),
                           })
                         }
-                        className="w-20 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-200"
+                        className={`w-20 ${inspectorNumberClass}`}
                       />
                     </div>
                   </label>
-                  <div className="rounded-lg border border-slate-800">
+                  <div className={inspectorPanelClass}>
                     <button
                       type="button"
-                      className="flex w-full items-center justify-between px-3 py-2 text-xs uppercase tracking-[0.08em] text-slate-300"
+                      className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-600"
                       onClick={() => setIsStrokeOpen((prev) => !prev)}
                     >
                       <span>Stroke</span>
@@ -1139,7 +1141,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                       </span>
                     </button>
                     {isStrokeOpen ? (
-                      <div className="flex flex-col gap-3 border-t border-slate-800 px-3 py-3 text-sm text-slate-300">
+                      <div className="mt-3 flex flex-col gap-3 border-t border-slate-200 pt-3 text-sm text-slate-700">
                         {(() => {
                           const strokeEnabled = selectedNode.strokeEnabled ?? false
                           const strokeColor =
@@ -1159,14 +1161,14 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                                 strokeEnabled: event.target.checked,
                               })
                             }
-                            className="h-4 w-4 accent-blue-500"
+                            className="h-4 w-4 accent-brand-600"
                           />
                         </label>
                         <label className="flex items-center justify-between gap-3">
                           <span>Color</span>
                           <input
                             type="color"
-                            className="h-8 w-10 cursor-pointer rounded-md border border-slate-700 bg-slate-900"
+                            className="h-10 w-12 cursor-pointer rounded-2xl border border-slate-200 bg-white"
                             value={strokeColor}
                             onChange={(event) =>
                               updateSelectedTextNode({
@@ -1203,13 +1205,13 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                               })
                             }
                             disabled={!strokeEnabled}
-                            className="w-24 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-200"
+                            className={`w-24 ${inspectorNumberClass}`}
                           />
                         </label>
                         <label className="flex flex-col gap-2">
                           Type
                           <select
-                            className="w-full rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-sm text-slate-200"
+                            className={inspectorInputClass}
                             value={strokeJoin}
                             onChange={(event) =>
                               updateSelectedTextNode({
@@ -1234,30 +1236,30 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                 </div>
               ) : selectedNode.type === 'shape' ? (
                 <div className="flex h-full flex-col gap-4">
-                  <div className="text-xs uppercase tracking-[0.08em] text-slate-400">
-                    Shape Tools
+                  <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Shape
                   </div>
-                  <div className="text-sm text-slate-200">
+                  <div className="text-sm text-slate-900">
                     {selectedNode.shape === 'rect' ? 'Rectangle' : 'Circle'}
                   </div>
 
-                  <label className="flex flex-col gap-2 text-sm text-slate-300">
+                  <label className={inspectorLabelClass}>
                     Fill
                     <div className="flex items-center gap-3">
                       <input
                         type="color"
-                        className="h-9 w-12 cursor-pointer rounded-md border border-slate-700 bg-slate-900"
+                        className="h-10 w-12 cursor-pointer rounded-2xl border border-slate-200 bg-white"
                         value={selectedNode.fill}
                         onChange={(event) =>
                           updateSelectedShapeNode({ fill: event.target.value })
                         }
                       />
-                      <span className="text-xs text-slate-400">{selectedNode.fill}</span>
+                      <span className="text-xs text-slate-500">{selectedNode.fill}</span>
                     </div>
                   </label>
 
                   {selectedNode.shape === 'rect' ? (
-                    <label className="flex flex-col gap-2 text-sm text-slate-300">
+                    <label className={inspectorLabelClass}>
                       Corner radius
                       <div className="flex items-center gap-3">
                         <input
@@ -1283,23 +1285,23 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                               cornerRadius: Number(event.target.value),
                             })
                           }
-                          className="w-20 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-200"
+                          className={`w-20 ${inspectorNumberClass}`}
                         />
                       </div>
                     </label>
                   ) : null}
 
-                  <div className="rounded-lg border border-slate-800">
+                  <div className={inspectorPanelClass}>
                     <button
                       type="button"
-                      className="flex w-full items-center justify-between px-3 py-2 text-xs uppercase tracking-[0.08em] text-slate-300"
+                      className="flex w-full items-center justify-between text-xs font-semibold uppercase tracking-wider text-slate-600"
                       onClick={() => setIsStrokeOpen((prev) => !prev)}
                     >
                       <span>Stroke</span>
                       <span className="text-slate-400">{isStrokeOpen ? '˄' : '˅'}</span>
                     </button>
                     {isStrokeOpen ? (
-                      <div className="flex flex-col gap-3 border-t border-slate-800 px-3 py-3 text-sm text-slate-300">
+                      <div className="mt-3 flex flex-col gap-3 border-t border-slate-200 pt-3 text-sm text-slate-700">
                         <label className="flex items-center justify-between gap-2">
                           <span>Enable</span>
                           <input
@@ -1317,7 +1319,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                           Color
                           <input
                             type="color"
-                            className="h-9 w-12 cursor-pointer rounded-md border border-slate-700 bg-slate-900"
+                            className="h-10 w-12 cursor-pointer rounded-2xl border border-slate-200 bg-white"
                             value={selectedNode.strokeColor}
                             onChange={(event) =>
                               updateSelectedShapeNode({ strokeColor: event.target.value })
@@ -1352,7 +1354,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                               })
                             }
                             disabled={!selectedNode.strokeEnabled}
-                            className="w-24 rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-sm text-slate-200"
+                            className={`w-24 ${inspectorNumberClass}`}
                           />
                         </label>
                       </div>
@@ -1360,7 +1362,9 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                   </div>
                 </div>
               ) : (
-                <div>Image tools will appear here</div>
+                <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-4 text-slate-500">
+                  Double-click the image on the canvas to crop it.
+                </div>
               )}
             </div>
           </div>
@@ -1384,7 +1388,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         onClose={() => setIsSaveOptionsOpen(false)}
         footer={
           <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsSaveOptionsOpen(false)}>
+            <Button type="button" variant="outline" tone="light" size="sm" onClick={() => setIsSaveOptionsOpen(false)}>
               Close
             </Button>
           </div>
@@ -1394,6 +1398,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
           <Button
             type="button"
             variant="primary"
+            tone="light"
             className="w-full"
             disabled={isSaving || isExportingSticker}
             onClick={async () => {
@@ -1406,6 +1411,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
           <Button
             type="button"
             variant="outline"
+            tone="light"
             className="w-full"
             disabled={isSaving || isExportingSticker}
             onClick={() => {
@@ -1425,7 +1431,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
           >
             Save sticker image (PNG)
           </Button>
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-slate-500">
             Sticker images export with a transparent background and tight crop.
           </div>
         </div>
@@ -1435,7 +1441,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         title="Save design too?"
         onClose={() => setIsExportPromptOpen(false)}
       >
-        <div className="flex flex-col gap-4 text-sm text-slate-300">
+        <div className="flex flex-col gap-4 text-sm leading-6 text-slate-600">
           <div>
             You haven’t saved this as a working file yet. If you don’t save it, you won’t be able to
             reopen and edit it later.
@@ -1444,6 +1450,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
             <Button
               type="button"
               variant="primary"
+              tone="light"
               disabled={isSaving || isExportingSticker}
               onClick={async () => {
                 setIsExportPromptOpen(false)
@@ -1458,6 +1465,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
             <Button
               type="button"
               variant="outline"
+              tone="light"
               disabled={isSaving || isExportingSticker}
               onClick={async () => {
                 setIsExportPromptOpen(false)
@@ -1473,17 +1481,18 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         </div>
       </Modal>
       <Modal
-        isOpen={isCanvasSetupOpen && !designId && !templateId}
+        isOpen={isCanvasSetupOpen}
         title="Choose canvas size"
         onClose={() => setIsCanvasSetupOpen(false)}
         footer={
           <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsCanvasSetupOpen(false)}>
+            <Button type="button" variant="outline" tone="light" size="sm" onClick={() => setIsCanvasSetupOpen(false)}>
               Skip
             </Button>
             <Button
               type="button"
               variant="primary"
+              tone="light"
               size="sm"
               onClick={() => {
                 const nextWidth = canvasSetupWidth.trim()
@@ -1511,11 +1520,11 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       >
         <div className="grid gap-6 md:grid-cols-2">
           <div className="flex flex-col gap-4">
-            <div className="text-sm text-slate-300">
+            <div className="text-sm leading-6 text-slate-600">
               Pick the sticker size you want to design. You can still change it later from the left panel.
             </div>
             <div className="flex flex-col gap-2">
-              <div className="text-xs uppercase tracking-[0.08em] text-slate-400">Canvas size (cm)</div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Canvas size (cm)</div>
               <div className="flex gap-2">
                 <TextInput
                   type="number"
@@ -1525,6 +1534,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                   onChange={(event) => setCanvasSetupWidth(event.target.value)}
                   placeholder="Width"
                   autoFocus
+                  tone="light"
                 />
                 <TextInput
                   type="number"
@@ -1533,22 +1543,23 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                   value={canvasSetupHeight}
                   onChange={(event) => setCanvasSetupHeight(event.target.value)}
                   placeholder="Height"
+                  tone="light"
                 />
               </div>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-slate-500">
                 Common sizes: 5×5cm, 10×10cm, 15×15cm
               </div>
             </div>
           </div>
           <div className="hidden md:block">
-            <div className="rounded-2xl border border-slate-800 bg-slate-950/40 p-5">
-              <div className="text-xs uppercase tracking-[0.08em] text-slate-400">Preview</div>
+            <div className="rounded-3xl border border-slate-200 bg-slate-50/90 p-5">
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Preview</div>
               <div className="mt-4 space-y-3 text-sm text-slate-300">
-                <div className="h-3 w-2/3 rounded-full bg-slate-800" />
-                <div className="h-3 w-1/2 rounded-full bg-slate-800" />
-                <div className="h-3 w-3/4 rounded-full bg-slate-800" />
+                <div className="h-3 w-2/3 rounded-full bg-slate-200" />
+                <div className="h-3 w-1/2 rounded-full bg-slate-200" />
+                <div className="h-3 w-3/4 rounded-full bg-slate-200" />
               </div>
-              <div className="mt-6 text-xs text-slate-400">
+              <div className="mt-6 text-xs text-slate-500">
                 Mockups (laptop + sticker scale) can be added next.
               </div>
             </div>
