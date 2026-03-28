@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import AuthShell from '../components/layout/AuthShell'
 import Button from '../components/ui/Button'
 import TextInput from '../components/ui/TextInput'
@@ -27,10 +27,10 @@ const LoginPage = () => {
       title="Welcome back"
       footer={
         <>
-          Don’t have an account?{' '}
-          <Link className="font-semibold text-brand-800 hover:underline" to="/sign-up">
-            Create one
-          </Link>
+          Want early access?{' '}
+          <a className="font-semibold text-brand-800 hover:underline" href="https://stickerizz.com">
+            Join the waitlist
+          </a>
         </>
       }
     >

@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import LoginPage from '../pages/LoginPage'
-import SignUpPage from '../pages/SignUpPage'
 import DashboardPage from '../pages/DashboardPage'
 import MyGalleryPage from '../pages/MyGalleryPage'
 import TemplatesPage from '../pages/TemplatesPage'
@@ -14,7 +13,7 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/sign-up" element={<SignUpPage />} />
+      <Route path="/sign-up" element={<Navigate to="/login" replace />} />
 
       <Route
         path="/"
