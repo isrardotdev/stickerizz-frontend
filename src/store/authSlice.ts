@@ -18,10 +18,8 @@ export const loginThunk = createAsyncThunk(
   async (input: { email: string; password: string }, { rejectWithValue }) => {
     try {
       return await authApi.login(input)
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unable to login.'
-      return rejectWithValue(message)
+    } catch {
+      return rejectWithValue('Incorrect email or password. Please try again.')
     }
   }
 )
@@ -107,10 +105,10 @@ const authSlice = createSlice({
         state.status = 'authenticated'
         state.error = null
       })
-      .addCase(verifyThunk.rejected, (state, action) => {
+      .addCase(verifyThunk.rejected, (state) => {
         state.status = 'idle'
         state.user = null
-        state.error = String(action.payload ?? action.error.message ?? 'Verify failed.')
+        state.error = null
       })
       .addCase(logoutThunk.fulfilled, (state) => {
         state.user = null
