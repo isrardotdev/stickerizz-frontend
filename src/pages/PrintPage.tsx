@@ -145,7 +145,7 @@ const PrintPage = () => {
 
   const [paperSize, setPaperSize] = useState<PaperSize>('A4')
   const [marginMm, setMarginMm] = useState(DEFAULT_MARGIN_MM)
-  const [gapMm, setGapMm] = useState(DEFAULT_STICKER_GAP_MM)
+  const gapMm = DEFAULT_STICKER_GAP_MM
   const [stickers, setStickers] = useState<SavedSticker[]>([])
   const [placed, setPlaced] = useState<PlacedSticker[]>([])
   const placedRef = useRef<PlacedSticker[]>([])
@@ -158,7 +158,7 @@ const PrintPage = () => {
   const [pendingJob, setPendingJob] = useState<PendingPrintJob | null>(null)
   const [isPendingPromptOpen, setIsPendingPromptOpen] = useState(false)
   const [isResolvingPendingJob, setIsResolvingPendingJob] = useState(false)
-  const [showStickerBounds, setShowStickerBounds] = useState(true)
+  const showStickerBounds = true
 
   const paper = PAPER_SIZES[paperSize]
 
