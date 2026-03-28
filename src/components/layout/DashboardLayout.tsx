@@ -29,12 +29,12 @@ const DashboardLayout = () => {
   const meta = routeMeta[location.pathname] ?? routeMeta['/']
 
   return (
-    <div className="min-h-screen bg-transparent">
-      <div className="flex min-h-screen flex-col lg:block">
+    <div className="h-screen overflow-hidden bg-transparent">
+      <div className="flex h-full flex-col lg:block">
         <Sidebar />
-        <div className="min-w-0 flex-1 lg:pl-72">
-          <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
-            <header className="rounded-3xl border border-white bg-white/80 px-6 py-5 shadow-sm shadow-slate-200/70 ring-1 ring-slate-100 backdrop-blur">
+        <div className="min-w-0 flex-1 lg:h-screen lg:pl-72">
+          <div className="mx-auto flex h-full max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+            <header className="shrink-0 rounded-3xl border border-white bg-white/80 px-6 py-5 shadow-sm shadow-slate-200/70 ring-1 ring-slate-100 backdrop-blur">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-1">
                   <div className="text-xs font-semibold uppercase tracking-wider text-brand-700">
@@ -47,10 +47,11 @@ const DashboardLayout = () => {
                     {meta.description}
                   </p>
                 </div>
+                <div id="header-actions-portal" />
               </div>
             </header>
 
-            <main className="mt-6 min-w-0 flex-1">
+            <main className="mt-6 min-h-0 min-w-0 flex-1 overflow-y-auto">
               <Outlet />
             </main>
           </div>

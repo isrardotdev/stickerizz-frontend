@@ -1,6 +1,20 @@
 @import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
+@theme {
+  --color-brand-50: #f6f0ff;
+  --color-brand-100: #efe3ff;
+  --color-brand-200: #dfc8ff;
+  --color-brand-300: #c6a2ff;
+  --color-brand-400: #a66ef8;
+  --color-brand-500: #8539ef;
+  --color-brand-600: #7429db;
+  --color-brand-700: #6220b8;
+  --color-brand-800: #511d95;
+  --color-brand-900: #431a79;
+  --color-brand-950: #2d1154;
+}
+
 :root {
   color-scheme: light;
 }

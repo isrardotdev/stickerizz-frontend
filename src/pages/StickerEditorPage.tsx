@@ -104,7 +104,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const [isCanvasSetupOpen, setIsCanvasSetupOpen] = useState(false)
   const [canvasSetupWidth, setCanvasSetupWidth] = useState(DEFAULT_WIDTH_CM)
   const [canvasSetupHeight, setCanvasSetupHeight] = useState(DEFAULT_HEIGHT_CM)
-  const [isSaveOptionsOpen, setIsSaveOptionsOpen] = useState(false)
+  const [isExportConfirmOpen, setIsExportConfirmOpen] = useState(false)
   const [isExportPromptOpen, setIsExportPromptOpen] = useState(false)
   const [isExportingSticker, setIsExportingSticker] = useState(false)
 
@@ -923,13 +923,23 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
               <Button
                 type="button"
                 size="sm"
+                variant="outline"
+                tone="light"
+                onClick={() => void saveWorkingFile()}
+                disabled={isSaving || isExportingSticker}
+              >
+                {isSaving ? 'Saving…' : 'Save file'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
                 variant="primary"
                 tone="light"
                 className="border-slate-950 bg-slate-950 text-white shadow-sm hover:bg-slate-800"
-                onClick={() => setIsSaveOptionsOpen(true)}
                 disabled={isSaving || isExportingSticker}
+                onClick={() => setIsExportConfirmOpen(true)}
               >
-                {isSaving || isExportingSticker ? 'Working…' : 'Save design'}
+                {isExportingSticker ? 'Exporting…' : 'Export sticker'}
               </Button>
               {isDirty ? (
                 <span className="rounded-full bg-brand-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-brand-800">
@@ -1383,70 +1393,64 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         />
       </EditorLayout>
       <Modal
-        isOpen={isSaveOptionsOpen}
-        title="Save"
-        onClose={() => setIsSaveOptionsOpen(false)}
+        isOpen={isExportConfirmOpen}
+        title="Export sticker"
+        onClose={() => setIsExportConfirmOpen(false)}
         footer={
           <div className="flex items-center justify-end gap-2">
-            <Button type="button" variant="outline" tone="light" size="sm" onClick={() => setIsSaveOptionsOpen(false)}>
-              Close
+            <Button type="button" variant="ghost" tone="light" onClick={() => setIsExportConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              tone="light"
+              disabled={isSaving || isExportingSticker}
+              onClick={() => {
+                setIsExportConfirmOpen(false)
+                if (designId) {
+                  void (async () => {
+                    const shouldSaveFirst =
+                      isDirty || Object.keys(pendingImageBlobsRef.current).length > 0
+                    const latestId = shouldSaveFirst ? await saveWorkingFile() : designId
+                    if (!latestId) return
+                    await exportStickerImage({ designId: latestId })
+                  })()
+                  return
+                }
+                setIsExportPromptOpen(true)
+              }}
+            >
+              Export
             </Button>
           </div>
         }
       >
-        <div className="flex flex-col gap-3">
-          <Button
-            type="button"
-            variant="primary"
-            tone="light"
-            className="w-full"
-            disabled={isSaving || isExportingSticker}
-            onClick={async () => {
-              setIsSaveOptionsOpen(false)
-              await saveWorkingFile()
-            }}
-          >
-            Save working file
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            tone="light"
-            className="w-full"
-            disabled={isSaving || isExportingSticker}
-            onClick={() => {
-              setIsSaveOptionsOpen(false)
-              if (designId) {
-                void (async () => {
-                  const shouldSaveFirst =
-                    isDirty || Object.keys(pendingImageBlobsRef.current).length > 0
-                  const latestId = shouldSaveFirst ? await saveWorkingFile() : designId
-                  if (!latestId) return
-                  await exportStickerImage({ designId: latestId })
-                })()
-                return
-              }
-              setIsExportPromptOpen(true)
-            }}
-          >
-            Save sticker image (PNG)
-          </Button>
-          <div className="text-xs text-slate-500">
-            Sticker images export with a transparent background and tight crop.
-          </div>
-        </div>
+        <p className="text-sm leading-6 text-slate-600">
+          Your sticker will be exported as a PNG with a transparent background and tight crop around the content.
+        </p>
       </Modal>
       <Modal
         isOpen={isExportPromptOpen}
-        title="Save design too?"
+        title="Save file before exporting?"
         onClose={() => setIsExportPromptOpen(false)}
-      >
-        <div className="flex flex-col gap-4 text-sm leading-6 text-slate-600">
-          <div>
-            You haven’t saved this as a working file yet. If you don’t save it, you won’t be able to
-            reopen and edit it later.
-          </div>
-          <div className="flex flex-col gap-2">
+        footer={
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="ghost" tone="light" onClick={() => setIsExportPromptOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              tone="light"
+              disabled={isSaving || isExportingSticker}
+              onClick={async () => {
+                setIsExportPromptOpen(false)
+                await exportStickerImage()
+              }}
+            >
+              Export only
+            </Button>
             <Button
               type="button"
               variant="primary"
@@ -1460,25 +1464,14 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
                 }
               }}
             >
-              Save design + export sticker
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              tone="light"
-              disabled={isSaving || isExportingSticker}
-              onClick={async () => {
-                setIsExportPromptOpen(false)
-                await exportStickerImage()
-              }}
-            >
-              Export only (don’t save design)
-            </Button>
-            <Button type="button" variant="ghost" tone="light" onClick={() => setIsExportPromptOpen(false)}>
-              Cancel
+              Save file + export
             </Button>
           </div>
-        </div>
+        }
+      >
+        <p className="text-sm leading-6 text-slate-600">
+          This design hasn't been saved yet. Save the file now so you can reopen and edit it later — or export the sticker without saving.
+        </p>
       </Modal>
       <Modal
         isOpen={isCanvasSetupOpen}
