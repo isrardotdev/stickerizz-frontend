@@ -44,6 +44,7 @@ export const createPrintCheckoutSession = async (payload: {
   marginMm: number
   placements: SheetPlacement[]
   quantity: number
+  addressId: string
 }) => {
   const response = await apiClient.post<{
     printJobId: string

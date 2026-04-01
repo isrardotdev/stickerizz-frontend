@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'react-router-dom'
 import Konva from 'konva'
 import { Image as KonvaImage, Layer, Rect, Stage } from 'react-konva'
 import useImage from 'use-image'
@@ -13,8 +14,11 @@ import {
 } from '../api/print'
 import type { PendingPrintJob } from '../api/print'
 import type { PaperSize } from '../api/print'
+import { listAddresses } from '../api/addresses'
+import type { Address } from '../api/addresses'
 import Modal from '../components/ui/Modal'
 import { SurfaceCard } from '../components/layout/DashboardPrimitives'
+import { cn } from '../components/ui/classNames'
 
 type Size = { width: number; height: number }
 
@@ -158,6 +162,9 @@ const PrintPage = () => {
   const [pendingJob, setPendingJob] = useState<PendingPrintJob | null>(null)
   const [isPendingPromptOpen, setIsPendingPromptOpen] = useState(false)
   const [isResolvingPendingJob, setIsResolvingPendingJob] = useState(false)
+  const [addresses, setAddresses] = useState<Address[]>([])
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
+  const [isLoadingAddresses, setIsLoadingAddresses] = useState(false)
   const showStickerBounds = true
 
   const paper = PAPER_SIZES[paperSize]
@@ -363,6 +370,21 @@ const PrintPage = () => {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!isCheckoutConfirmOpen) return
+    setIsLoadingAddresses(true)
+    listAddresses()
+      .then((data) => {
+        setAddresses(data)
+        const defaultAddr = data.find((a) => a.isDefault) ?? data[0] ?? null
+        setSelectedAddressId((prev) => prev ?? defaultAddr?.id ?? null)
+      })
+      .catch(() => {
+        // non-fatal — user will see empty state and link to /addresses
+      })
+      .finally(() => setIsLoadingAddresses(false))
+  }, [isCheckoutConfirmOpen])
 
   useEffect(() => {
     placedRef.current = placed
@@ -666,6 +688,8 @@ const PrintPage = () => {
   }
 
   const createCheckoutSession = async () => {
+    if (!selectedAddressId) return
+
     setIsGenerating(true)
     setError(null)
 
@@ -684,6 +708,7 @@ const PrintPage = () => {
           rotationDeg: item.rotationDeg,
         })),
         quantity,
+        addressId: selectedAddressId,
       })
       setIsCheckoutConfirmOpen(false)
       window.location.href = response.checkoutUrl
@@ -1010,31 +1035,100 @@ const PrintPage = () => {
               variant="primary"
               tone="light"
               onClick={() => void createCheckoutSession()}
-              disabled={isGenerating}
+              disabled={isGenerating || !selectedAddressId}
             >
-              {isGenerating ? 'Please wait…' : 'Print Order'}
+              {isGenerating ? 'Please wait…' : 'Place print order'}
             </Button>
           </div>
         }
       >
-        <div className="space-y-3 text-sm leading-6 text-slate-600">
-          <p>
-            You are about to place a print order for a {paperSize} sheet.
-          </p>
-          <p>
-            Quantity: <span className="font-semibold">{quantity}</span>
-          </p>
-          <p>
-            Price: <span className="font-semibold">INR {UNIT_PRICE_INR[paperSize]} each</span>
-          </p>
-          <p>
-            Total:{' '}
-            <span className="font-semibold">
-              INR {UNIT_PRICE_INR[paperSize] * quantity}
-            </span>
-          </p>
-          <p className="text-xs text-slate-500">
-            You will be redirected to WooCommerce checkout to complete payment.
+        <div className="space-y-5 text-sm leading-6 text-slate-600">
+          <div className="grid grid-cols-3 gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Paper</div>
+              <div className="mt-1 font-medium text-slate-900">{paperSize}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Quantity</div>
+              <div className="mt-1 font-medium text-slate-900">{quantity}</div>
+            </div>
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total</div>
+              <div className="mt-1 font-medium text-slate-900">
+                ₹{UNIT_PRICE_INR[paperSize] * quantity}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="font-medium text-slate-800">Delivery address</span>
+              <Link
+                to="/addresses"
+                className="text-xs text-brand-700 hover:underline"
+                onClick={() => setIsCheckoutConfirmOpen(false)}
+              >
+                Manage addresses
+              </Link>
+            </div>
+            {isLoadingAddresses ? (
+              <div className="rounded-2xl border border-slate-200 p-4 text-slate-500">
+                Loading addresses…
+              </div>
+            ) : addresses.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center">
+                <p className="text-slate-600">No saved addresses.</p>
+                <Link
+                  to="/addresses"
+                  className="mt-1 block text-xs text-brand-700 hover:underline"
+                  onClick={() => setIsCheckoutConfirmOpen(false)}
+                >
+                  Add an address first
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {addresses.map((address) => (
+                  <label
+                    key={address.id}
+                    className={cn(
+                      'flex cursor-pointer items-start gap-3 rounded-2xl border p-3.5 transition-colors',
+                      selectedAddressId === address.id
+                        ? 'border-brand-300 bg-brand-50 ring-1 ring-brand-200'
+                        : 'border-slate-200 bg-white hover:border-slate-300'
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="address"
+                      className="mt-0.5 accent-brand-600"
+                      checked={selectedAddressId === address.id}
+                      onChange={() => setSelectedAddressId(address.id)}
+                    />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-900">{address.fullName}</span>
+                        {address.isDefault ? (
+                          <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">
+                            Default
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500">
+                        {address.line1}
+                        {address.line2 ? `, ${address.line2}` : ''},{' '}
+                        {address.city}, {address.state} {address.postalCode}
+                      </div>
+                      <div className="mt-0.5 text-xs text-slate-500">{address.phone}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-slate-400">
+            You will be redirected to complete payment after confirming.
           </p>
         </div>
       </Modal>

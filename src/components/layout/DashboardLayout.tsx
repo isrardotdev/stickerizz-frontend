@@ -22,6 +22,10 @@ const routeMeta: Record<string, { title: string; description: string }> = {
     title: 'Print composer',
     description: 'Arrange stickers on a printable sheet.',
   },
+  '/addresses': {
+    title: 'Saved addresses',
+    description: 'Manage your delivery addresses for print orders.',
+  },
 }
 
 const DashboardLayout = () => {

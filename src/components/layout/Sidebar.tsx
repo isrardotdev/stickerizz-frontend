@@ -1,4 +1,4 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, Link } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import { logoutThunk } from '../../store/authSlice'
@@ -176,6 +176,14 @@ const Sidebar = () => {
 
             {isProfileOpen ? (
               <div className="absolute bottom-full left-0 right-0 mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg shadow-slate-200/80">
+                <Link
+                  to="/addresses"
+                  className="flex w-full items-center px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setIsProfileOpen(false)}
+                >
+                  Addresses
+                </Link>
+                <div className="border-t border-slate-100" />
                 <button
                   type="button"
                   className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
