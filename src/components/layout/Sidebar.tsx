@@ -121,6 +121,7 @@ const Sidebar = () => {
   }, [isProfileOpen])
 
   return (
+    <>
     <aside className="w-full border-b border-slate-200/80 bg-white/90 px-4 py-4 backdrop-blur lg:fixed lg:inset-y-0 lg:left-0 lg:w-72 lg:border-b-0 lg:border-r">
       <div className="flex h-full flex-col lg:px-4 lg:py-4">
         <div className="px-2 py-3">
@@ -223,6 +224,7 @@ const Sidebar = () => {
       isOpen={isChangePasswordOpen}
       onClose={() => setIsChangePasswordOpen(false)}
     />
+    </>
   )
 }
 

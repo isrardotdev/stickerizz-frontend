@@ -62,11 +62,11 @@ const ChangePasswordModal = ({ isOpen, onClose }: Props) => {
     setNewPassword('')
     setConfirmPassword('')
     setError(null)
-    setSuccess(false)
   }
 
   const handleClose = () => {
     reset()
+    setSuccess(false)
     onClose()
   }
 
@@ -82,8 +82,8 @@ const ChangePasswordModal = ({ isOpen, onClose }: Props) => {
     setIsLoading(true)
     try {
       await changePassword({ oldPassword, newPassword })
-      setSuccess(true)
       reset()
+      setSuccess(true)
     } catch (err) {
       setError(getApiErrorMessage(err, 'Failed to change password. Please try again.'))
     } finally {

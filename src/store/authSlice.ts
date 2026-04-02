@@ -20,8 +20,8 @@ export const loginThunk = createAsyncThunk(
   async (input: { email: string; password: string }, { rejectWithValue }) => {
     try {
       return await authApi.login(input)
-    } catch {
-      return rejectWithValue('Incorrect email or password. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Incorrect email or password. Please try again.'))
     }
   }
 )
@@ -45,8 +45,8 @@ export const googleLoginThunk = createAsyncThunk(
   async (idToken: string, { rejectWithValue }) => {
     try {
       return await authApi.googleLogin(idToken)
-    } catch {
-      return rejectWithValue('Google sign-in failed. Please try again.')
+    } catch (error) {
+      return rejectWithValue(getApiErrorMessage(error, 'Google sign-in failed. Please try again.'))
     }
   }
 )
