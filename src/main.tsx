@@ -4,6 +4,9 @@ import { Provider } from 'react-redux'
 import './index.css'
 import App from './App.tsx'
 import { store } from './store/store'
+import { initPostHog } from './analytics/posthog'
+
+initPostHog()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
