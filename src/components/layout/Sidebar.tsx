@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppDispatch, useAppSelector } from '../../store/hooks'
 import { logoutThunk } from '../../store/authSlice'
 import { cn } from '../ui/classNames'
+import ChangePasswordModal from '../ui/ChangePasswordModal'
 
 const icons = {
   dashboard: (
@@ -93,6 +94,7 @@ const Sidebar = () => {
   const dispatch = useAppDispatch()
   const user = useAppSelector((state) => state.auth.user)
   const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -183,6 +185,21 @@ const Sidebar = () => {
                 >
                   Addresses
                 </Link>
+                {user?.hasPassword ? (
+                  <>
+                    <div className="border-t border-slate-100" />
+                    <button
+                      type="button"
+                      className="w-full px-4 py-3 text-left text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      onClick={() => {
+                        setIsProfileOpen(false)
+                        setIsChangePasswordOpen(true)
+                      }}
+                    >
+                      Reset password
+                    </button>
+                  </>
+                ) : null}
                 <div className="border-t border-slate-100" />
                 <button
                   type="button"
@@ -201,6 +218,11 @@ const Sidebar = () => {
         </div>
       </div>
     </aside>
+
+    <ChangePasswordModal
+      isOpen={isChangePasswordOpen}
+      onClose={() => setIsChangePasswordOpen(false)}
+    />
   )
 }
 

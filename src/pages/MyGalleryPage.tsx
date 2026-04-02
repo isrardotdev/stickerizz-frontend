@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listDesigns } from '../api/designs'
+import { getApiErrorMessage } from '../api/errors'
 import { SurfaceCard } from '../components/layout/DashboardPrimitives'
 import Button from '../components/ui/Button'
 
@@ -16,7 +17,7 @@ const MyGalleryPage = () => {
     listDesigns()
       .then((data) => setDesigns(data))
       .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to load designs.')
+        setError(getApiErrorMessage(err, 'Failed to load designs. Please try again.'))
       )
       .finally(() => setIsLoading(false))
   }, [])

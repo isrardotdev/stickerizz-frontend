@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import { HiEye, HiEyeSlash } from 'react-icons/hi2'
 import AuthShell from '../components/layout/AuthShell'
 import Button from '../components/ui/Button'
 import TextInput from '../components/ui/TextInput'
@@ -14,6 +16,7 @@ const LoginPage = () => {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   useEffect(() => {
     if (!user || status !== 'authenticated') return
@@ -38,7 +41,12 @@ const LoginPage = () => {
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
-            dispatch(loginThunk({ email, password }))
+            void dispatch(loginThunk({ email, password })).then((action) => {
+              if (loginThunk.fulfilled.match(action)) {
+                const name = action.payload.user.name
+                toast.success(name ? `Welcome back, ${name}!` : 'Welcome back!')
+              }
+            })
           }}
         >
           <label className="flex flex-col gap-2 text-sm text-slate-700">
@@ -56,15 +64,27 @@ const LoginPage = () => {
 
           <label className="flex flex-col gap-2 text-sm text-slate-700">
             Password
-            <TextInput
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-              tone="light"
-              required
-            />
+            <div className="relative">
+              <TextInput
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                tone="light"
+                required
+                className="pr-10"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <HiEyeSlash className="h-4 w-4" /> : <HiEye className="h-4 w-4" />}
+              </button>
+            </div>
           </label>
 
           {error ? (

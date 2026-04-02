@@ -7,6 +7,7 @@ import {
   setDefaultAddress,
 } from '../api/addresses'
 import type { Address, AddressInput } from '../api/addresses'
+import { getApiErrorMessage } from '../api/errors'
 import { SurfaceCard } from '../components/layout/DashboardPrimitives'
 import Button from '../components/ui/Button'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -29,7 +30,7 @@ const AddressesPage = () => {
         setError(null)
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to load addresses.')
+        setError(getApiErrorMessage(err, 'Failed to load addresses. Please try again.'))
       })
       .finally(() => setIsLoading(false))
   }

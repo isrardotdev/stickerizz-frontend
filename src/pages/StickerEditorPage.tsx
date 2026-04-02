@@ -19,7 +19,9 @@ import { uploadImage } from '../api/assets'
 import { createSticker } from '../api/stickers'
 import { createDesign, getDesign, updateDesign } from '../api/designs'
 import { getTemplate } from '../api/templates'
+import { getApiErrorMessage } from '../api/errors'
 import { isEditorDocumentV1 } from '../components/editor/document'
+import { toast } from 'sonner'
 
 const DEFAULT_WIDTH_CM = '6'
 const DEFAULT_HEIGHT_CM = '6'
@@ -600,7 +602,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     }
 
     load().catch((error) => {
-      setSaveError(error instanceof Error ? error.message : 'Failed to load.')
+      setSaveError(getApiErrorMessage(error, 'Failed to load design. Please try again.'))
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [designId, templateId])
@@ -745,7 +747,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
       navigate(`/canvas/${created.id}`, { replace: true })
       return created.id
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Save failed.')
+      setSaveError(getApiErrorMessage(error, 'Save failed. Please try again.'))
       return null
     } finally {
       setIsSaving(false)
@@ -870,8 +872,9 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         bytes: exportResult.blob.size,
       })
       console.info('[editor.export] saved sticker entry')
+      toast.success('Sticker saved to your collection!')
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Export failed.')
+      setSaveError(getApiErrorMessage(error, 'Export failed. Please try again.'))
     } finally {
       setIsExportingSticker(false)
     }

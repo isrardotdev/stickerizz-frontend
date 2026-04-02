@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 import { deleteSticker, listStickers } from '../api/stickers'
 import type { SavedSticker } from '../api/stickers'
+import { getApiErrorMessage } from '../api/errors'
 import { SurfaceCard } from '../components/layout/DashboardPrimitives'
 
 const MyStickersPage = () => {
@@ -22,7 +23,7 @@ const MyStickersPage = () => {
         setError(null)
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to load stickers.')
+        setError(getApiErrorMessage(err, 'Failed to load stickers. Please try again.'))
       })
       .finally(() => setIsLoading(false))
   }, [])

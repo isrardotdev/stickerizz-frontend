@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import AuthShell from '../components/layout/AuthShell'
 import Button from '../components/ui/Button'
 import TextInput from '../components/ui/TextInput'
@@ -37,7 +38,12 @@ const SignUpPage = () => {
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault()
-            dispatch(registerThunk({ name: name.trim() || undefined, email, password }))
+            void dispatch(registerThunk({ name: name.trim() || undefined, email, password })).then((action) => {
+              if (registerThunk.fulfilled.match(action)) {
+                const n = action.payload.user.name
+                toast.success(n ? `Welcome, ${n}!` : 'Account created! Welcome!')
+              }
+            })
           }}
         >
           <label className="flex flex-col gap-2 text-sm text-slate-700">

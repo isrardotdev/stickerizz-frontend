@@ -16,6 +16,8 @@ import type { PendingPrintJob } from '../api/print'
 import type { PaperSize } from '../api/print'
 import { listAddresses } from '../api/addresses'
 import type { Address } from '../api/addresses'
+import { getApiErrorMessage } from '../api/errors'
+import { toast } from 'sonner'
 import Modal from '../components/ui/Modal'
 import { SurfaceCard } from '../components/layout/DashboardPrimitives'
 import { cn } from '../components/ui/classNames'
@@ -345,7 +347,7 @@ const PrintPage = () => {
         setError(null)
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : 'Failed to load stickers.')
+        setError(getApiErrorMessage(err, 'Failed to load stickers. Please try again.'))
       })
       .finally(() => setIsLoading(false))
   }, [])
@@ -673,7 +675,7 @@ const PrintPage = () => {
       setError(null)
       setIsPendingPromptOpen(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to cancel previous pending order.')
+      setError(getApiErrorMessage(err, 'Failed to cancel previous pending order. Please try again.'))
     } finally {
       setIsResolvingPendingJob(false)
     }
@@ -693,6 +695,7 @@ const PrintPage = () => {
     setIsGenerating(true)
     setError(null)
 
+    const toastId = toast.loading('Placing your order…')
     try {
       if (pendingJob?.status === 'PENDING_PAYMENT') {
         await cancelPendingPrintJob(pendingJob.id)
@@ -711,9 +714,11 @@ const PrintPage = () => {
         addressId: selectedAddressId,
       })
       setIsCheckoutConfirmOpen(false)
+      toast.success('Redirecting to checkout…', { id: toastId })
       window.location.href = response.checkoutUrl
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create checkout session.')
+      toast.dismiss(toastId)
+      setError(getApiErrorMessage(err, 'Failed to create checkout session. Please try again.'))
     } finally {
       setIsGenerating(false)
     }

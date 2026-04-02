@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { listTemplates } from '../api/templates'
+import { getApiErrorMessage } from '../api/errors'
 import { SurfaceCard } from '../components/layout/DashboardPrimitives'
 import Button from '../components/ui/Button'
 
@@ -16,7 +17,7 @@ const TemplatesPage = () => {
     listTemplates()
       .then((data) => setTemplates(data))
       .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Failed to load templates.')
+        setError(getApiErrorMessage(err, 'Failed to load templates. Please try again.'))
       )
       .finally(() => setIsLoading(false))
   }, [])

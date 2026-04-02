@@ -1,5 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit'
 import * as authApi from '../api/auth'
+import { getApiErrorMessage } from '../api/errors'
+import { posthog } from '../analytics/posthog'
 
 type AuthState = {
   user: authApi.AuthUser | null
@@ -33,9 +35,18 @@ export const registerThunk = createAsyncThunk(
     try {
       return await authApi.register(input)
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unable to register.'
-      return rejectWithValue(message)
+      return rejectWithValue(getApiErrorMessage(error, 'Unable to create account. Please try again.'))
+    }
+  }
+)
+
+export const googleLoginThunk = createAsyncThunk(
+  'auth/googleLogin',
+  async (idToken: string, { rejectWithValue }) => {
+    try {
+      return await authApi.googleLogin(idToken)
+    } catch {
+      return rejectWithValue('Google sign-in failed. Please try again.')
     }
   }
 )
@@ -46,10 +57,8 @@ export const verifyThunk = createAsyncThunk(
     try {
       const user = await authApi.me()
       return { user }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Unable to verify session.'
-      return rejectWithValue(message)
+    } catch {
+      return rejectWithValue(null)
     }
   }
 )
@@ -78,6 +87,7 @@ const authSlice = createSlice({
         state.user = action.payload.user
         state.status = 'authenticated'
         state.error = null
+        posthog.identify(action.payload.user.id, { email: action.payload.user.email })
       })
       .addCase(loginThunk.rejected, (state, action) => {
         state.status = 'error'
@@ -91,10 +101,25 @@ const authSlice = createSlice({
         state.user = action.payload.user
         state.status = 'authenticated'
         state.error = null
+        posthog.identify(action.payload.user.id, { email: action.payload.user.email })
       })
       .addCase(registerThunk.rejected, (state, action) => {
         state.status = 'error'
         state.error = String(action.payload ?? action.error.message ?? 'Registration failed.')
+      })
+      .addCase(googleLoginThunk.pending, (state) => {
+        state.status = 'loading'
+        state.error = null
+      })
+      .addCase(googleLoginThunk.fulfilled, (state, action) => {
+        state.user = action.payload.user
+        state.status = 'authenticated'
+        state.error = null
+        posthog.identify(action.payload.user.id, { email: action.payload.user.email })
+      })
+      .addCase(googleLoginThunk.rejected, (state, action) => {
+        state.status = 'error'
+        state.error = String(action.payload ?? action.error.message ?? 'Google sign-in failed.')
       })
       .addCase(verifyThunk.pending, (state) => {
         if (state.status === 'idle') state.status = 'loading'
@@ -104,6 +129,7 @@ const authSlice = createSlice({
         state.user = action.payload.user
         state.status = 'authenticated'
         state.error = null
+        posthog.identify(action.payload.user.id, { email: action.payload.user.email })
       })
       .addCase(verifyThunk.rejected, (state) => {
         state.status = 'idle'
@@ -114,6 +140,7 @@ const authSlice = createSlice({
         state.user = null
         state.status = 'idle'
         state.error = null
+        posthog.reset()
       })
   },
 })
