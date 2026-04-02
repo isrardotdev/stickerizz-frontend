@@ -147,18 +147,20 @@ const AddressModal = ({ isOpen, onClose, onSave, initial }: AddressModalProps) =
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-sm text-slate-700">
-            Full name <span className="text-red-500">*</span>
+            <span>Full name <span className="text-red-500">*</span></span>
             <TextInput
               tone="light"
+              className="rounded-lg"
               placeholder="Rahul Sharma"
               value={fields.fullName}
               onChange={(e) => set('fullName', e.target.value)}
             />
           </label>
           <label className="flex flex-col gap-1.5 text-sm text-slate-700">
-            Email <span className="text-red-500">*</span>
+            <span>Email <span className="text-red-500">*</span></span>
             <TextInput
               tone="light"
+              className="rounded-lg"
               type="email"
               placeholder="rahul@example.com"
               value={fields.email}
@@ -166,9 +168,10 @@ const AddressModal = ({ isOpen, onClose, onSave, initial }: AddressModalProps) =
             />
           </label>
           <label className="flex flex-col gap-1.5 text-sm text-slate-700">
-            Phone <span className="text-red-500">*</span>
+            <span>Phone <span className="text-red-500">*</span></span>
             <TextInput
               tone="light"
+              className="rounded-lg"
               type="tel"
               placeholder="+91 98765 43210"
               value={fields.phone}
@@ -176,10 +179,11 @@ const AddressModal = ({ isOpen, onClose, onSave, initial }: AddressModalProps) =
             />
           </label>
           <label className="flex flex-col gap-1.5 text-sm text-slate-700">
-            PIN code <span className="text-red-500">*</span>
+            <span>PIN code <span className="text-red-500">*</span></span>
             <div className="relative">
               <TextInput
                 tone="light"
+                className="rounded-lg"
                 placeholder="400001"
                 maxLength={6}
                 value={fields.postalCode}
@@ -195,18 +199,20 @@ const AddressModal = ({ isOpen, onClose, onSave, initial }: AddressModalProps) =
         </div>
 
         <label className="flex flex-col gap-1.5 text-sm text-slate-700">
-          Address line 1 <span className="text-red-500">*</span>
+          <span>Address line 1 <span className="text-red-500">*</span></span>
           <TextInput
             tone="light"
+            className="rounded-lg"
             placeholder="Flat / house no., building name, street"
             value={fields.line1}
             onChange={(e) => set('line1', e.target.value)}
           />
         </label>
         <label className="flex flex-col gap-1.5 text-sm text-slate-700">
-          Address line 2 <span className="text-xs text-slate-400">(optional)</span>
+          <span>Address line 2 <span className="text-xs text-slate-400">(optional)</span></span>
           <TextInput
             tone="light"
+            className="rounded-lg"
             placeholder="Area, landmark"
             value={fields.line2 ?? ''}
             onChange={(e) => set('line2', e.target.value)}
@@ -215,18 +221,20 @@ const AddressModal = ({ isOpen, onClose, onSave, initial }: AddressModalProps) =
 
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="flex flex-col gap-1.5 text-sm text-slate-700">
-            City <span className="text-red-500">*</span>
+            <span>City <span className="text-red-500">*</span></span>
             <TextInput
               tone="light"
+              className="rounded-lg"
               placeholder="Mumbai"
               value={fields.city}
               onChange={(e) => set('city', e.target.value)}
             />
           </label>
           <label className="flex flex-col gap-1.5 text-sm text-slate-700">
-            State <span className="text-red-500">*</span>
+            <span>State <span className="text-red-500">*</span></span>
             <TextInput
               tone="light"
+              className="rounded-lg"
               placeholder="Maharashtra"
               value={fields.state}
               onChange={(e) => set('state', e.target.value)}
