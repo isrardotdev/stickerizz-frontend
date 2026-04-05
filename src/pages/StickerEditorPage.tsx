@@ -82,6 +82,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const [isStrokeOpen, setIsStrokeOpen] = useState(true)
   const [pendingDeleteIds, setPendingDeleteIds] = useState<string[] | null>(null)
   const [isDirty, setIsDirty] = useState(false)
+  const [isBackConfirmOpen, setIsBackConfirmOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const stageRef = useRef<Konva.Stage | null>(null)
@@ -369,22 +370,9 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     event.preventDefault()
     setIsDragOver(false)
 
-    // File dragged from computer
     const files = event.dataTransfer.files
     if (files.length > 0 && files[0].type.startsWith('image/')) {
       handleUploadImage(files[0])
-      return
-    }
-
-    // Image dragged from a website
-    const url =
-      event.dataTransfer.getData('text/uri-list') ||
-      event.dataTransfer.getData('text/plain')
-    if (url && /^https?:\/\//.test(url)) {
-      setImageFile(null)
-      setEditingImageId(null)
-      setEditingImageSrc(url)
-      setIsImageModalOpen(true)
     }
   }
 
@@ -1009,7 +997,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         }
         toolbar={
           <Toolbar
-            onBack={() => navigate('/')}
+            onBack={() => isDirty ? setIsBackConfirmOpen(true) : navigate('/')}
             onOpenCanvasSize={() => {
               setCanvasSetupWidth(widthCm)
               setCanvasSetupHeight(heightCm)
@@ -1625,6 +1613,15 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
         confirmVariant="danger"
         onConfirm={confirmDeleteNodes}
         onClose={() => setPendingDeleteIds(null)}
+      />
+      <ConfirmDialog
+        isOpen={isBackConfirmOpen}
+        title="Unsaved changes"
+        content="Your unsaved changes will be lost. Are you sure you want to go back?"
+        confirmText="Leave"
+        confirmVariant="danger"
+        onConfirm={() => navigate('/')}
+        onClose={() => setIsBackConfirmOpen(false)}
       />
     </div>
   )
