@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { PointerEvent as ReactPointerEvent } from 'react'
+import type { PointerEvent as ReactPointerEvent, DragEvent as ReactDragEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type Konva from 'konva'
 import { HiArrowUturnLeft, HiArrowUturnRight } from 'react-icons/hi2'
@@ -76,6 +76,7 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
   const [editingImageId, setEditingImageId] = useState<string | null>(null)
   const [editingImageSrc, setEditingImageSrc] = useState<string | null>(null)
   const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
   const rightPanelRef = useRef<HTMLDivElement | null>(null)
   const [rightSplitRatio, setRightSplitRatio] = useState(0.5)
   const [isStrokeOpen, setIsStrokeOpen] = useState(true)
@@ -362,6 +363,29 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
     setEditingImageId(null)
     setEditingImageSrc(null)
     setIsImageModalOpen(true)
+  }
+
+  const handleDropOnCanvas = (event: ReactDragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDragOver(false)
+
+    // File dragged from computer
+    const files = event.dataTransfer.files
+    if (files.length > 0 && files[0].type.startsWith('image/')) {
+      handleUploadImage(files[0])
+      return
+    }
+
+    // Image dragged from a website
+    const url =
+      event.dataTransfer.getData('text/uri-list') ||
+      event.dataTransfer.getData('text/plain')
+    if (url && /^https?:\/\//.test(url)) {
+      setImageFile(null)
+      setEditingImageId(null)
+      setEditingImageSrc(url)
+      setIsImageModalOpen(true)
+    }
   }
 
   const handleEditImage = (id: string) => {
@@ -1383,17 +1407,31 @@ const StickerEditorPage = ({ designId, templateId }: StickerEditorPageProps) => 
           </div>
         }
       >
-        <CanvasStage
-          nodes={nodes}
-          selectedIds={selectedIds}
-          onSelectIds={setSelectedIds}
-          onChange={updateNode}
-          onEditImage={handleEditImage}
-          stageRef={stageRef}
-          canvasWidth={canvasPx?.width ?? 0}
-          canvasHeight={canvasPx?.height ?? 0}
-          isCanvasValid={isCanvasValid}
-        />
+        <div
+          className="relative h-full w-full"
+          onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false) }}
+          onDrop={handleDropOnCanvas}
+        >
+          <CanvasStage
+            nodes={nodes}
+            selectedIds={selectedIds}
+            onSelectIds={setSelectedIds}
+            onChange={updateNode}
+            onEditImage={handleEditImage}
+            stageRef={stageRef}
+            canvasWidth={canvasPx?.width ?? 0}
+            canvasHeight={canvasPx?.height ?? 0}
+            isCanvasValid={isCanvasValid}
+          />
+          {isDragOver && (
+            <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center border-4 border-dashed border-brand-400 bg-brand-50/50">
+              <div className="rounded-2xl bg-white px-8 py-5 text-center shadow-xl">
+                <p className="text-base font-semibold text-brand-700">Drop image to add to canvas</p>
+              </div>
+            </div>
+          )}
+        </div>
       </EditorLayout>
       <Modal
         isOpen={isExportConfirmOpen}
