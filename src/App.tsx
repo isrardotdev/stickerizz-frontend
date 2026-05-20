@@ -30,6 +30,12 @@ const MobileBlock = () => (
     <p style={{ fontSize: '0.95rem', color: '#aaa', maxWidth: '300px', lineHeight: 1.6 }}>
       Stickerizz is optimized for desktop. Please open it on a laptop or desktop computer for the best experience.
     </p>
+    <a
+      href="https://stickerizz.com"
+      style={{ marginTop: '1.75rem', fontSize: '0.9rem', color: '#fff', textDecoration: 'none', borderBottom: '1px solid #555', paddingBottom: '2px' }}
+    >
+      Visit stickerizz.com
+    </a>
   </div>
 )
 
