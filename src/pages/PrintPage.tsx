@@ -731,7 +731,7 @@ const PrintPage = () => {
       {headerPortal && createPortal(
         <div className="flex items-center gap-2">
           <select
-            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline focus:outline-2 focus:outline-offset-0 focus:outline-brand-500"
+            className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-2 focus:outline-offset-0 focus:outline-brand-500"
             value={paperSize}
             onChange={(event) => {
               setPaperSize(event.target.value as PaperSize)
