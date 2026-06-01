@@ -45,11 +45,25 @@ export const createPrintCheckoutSession = async (payload: {
   placements: SheetPlacement[]
   quantity: number
   addressId: string
+  couponCode?: string
 }) => {
   const response = await apiClient.post<{
     printJobId: string
     checkoutUrl: string
   }>('/api/print/checkout-session', payload, { timeout: 30000 })
+  return response.data
+}
+
+export type CouponValidationResult =
+  | { valid: true; couponCode: string; discountType: string; discountAmount: number; originalTotal: number; discountedTotal: number }
+  | { valid: false; message: string }
+
+export const validateCoupon = async (code: string, paperSize: PaperSize, quantity: number) => {
+  const params = new URLSearchParams({ paperSize, quantity: String(quantity) })
+  const response = await apiClient.get<CouponValidationResult>(
+    `/api/print/coupons/${encodeURIComponent(code)}/validate?${params.toString()}`,
+    { timeout: 10000 }
+  )
   return response.data
 }
 

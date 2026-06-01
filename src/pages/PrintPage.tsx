@@ -11,8 +11,9 @@ import {
   cancelPendingPrintJob,
   createPrintCheckoutSession,
   getLatestPendingPrintJob,
+  validateCoupon,
 } from '../api/print'
-import type { PendingPrintJob } from '../api/print'
+import type { CouponValidationResult, PendingPrintJob } from '../api/print'
 import type { PaperSize } from '../api/print'
 import { listAddresses } from '../api/addresses'
 import type { Address } from '../api/addresses'
@@ -167,6 +168,10 @@ const PrintPage = () => {
   const [addresses, setAddresses] = useState<Address[]>([])
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(false)
+  const [couponInput, setCouponInput] = useState('')
+  const [couponStatus, setCouponStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle')
+  const [couponResult, setCouponResult] = useState<Extract<CouponValidationResult, { valid: true }> | null>(null)
+  const [couponMessage, setCouponMessage] = useState('')
   const showStickerBounds = true
 
   const paper = PAPER_SIZES[paperSize]
@@ -374,7 +379,13 @@ const PrintPage = () => {
   }, [])
 
   useEffect(() => {
-    if (!isCheckoutConfirmOpen) return
+    if (!isCheckoutConfirmOpen) {
+      setCouponInput('')
+      setCouponStatus('idle')
+      setCouponResult(null)
+      setCouponMessage('')
+      return
+    }
     setIsLoadingAddresses(true)
     listAddresses()
       .then((data) => {
@@ -689,6 +700,29 @@ const PrintPage = () => {
     window.location.href = pendingJob.checkoutUrl
   }
 
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim()
+    if (!code) return
+    setCouponStatus('checking')
+    setCouponMessage('')
+    try {
+      const result = await validateCoupon(code, paperSize, quantity)
+      if (result.valid) {
+        setCouponStatus('valid')
+        setCouponResult(result)
+        setCouponMessage(`Coupon applied! You save ₹${result.originalTotal - result.discountedTotal}`)
+      } else {
+        setCouponStatus('invalid')
+        setCouponResult(null)
+        setCouponMessage(result.message)
+      }
+    } catch {
+      setCouponStatus('invalid')
+      setCouponResult(null)
+      setCouponMessage('Could not validate coupon. Please try again.')
+    }
+  }
+
   const createCheckoutSession = async () => {
     if (!selectedAddressId) return
 
@@ -712,6 +746,7 @@ const PrintPage = () => {
         })),
         quantity,
         addressId: selectedAddressId,
+        couponCode: couponResult?.couponCode,
       })
       setIsCheckoutConfirmOpen(false)
       toast.success('Redirecting to checkout…', { id: toastId })
@@ -1059,10 +1094,53 @@ const PrintPage = () => {
             </div>
             <div>
               <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">Total</div>
-              <div className="mt-1 font-medium text-slate-900">
-                ₹{UNIT_PRICE_INR[paperSize] * quantity}
-              </div>
+              {couponResult ? (
+                <div className="mt-1">
+                  <span className="font-medium text-slate-400 line-through">₹{couponResult.originalTotal}</span>
+                  <span className="ml-1.5 font-semibold text-green-700">₹{couponResult.discountedTotal}</span>
+                </div>
+              ) : (
+                <div className="mt-1 font-medium text-slate-900">₹{UNIT_PRICE_INR[paperSize] * quantity}</div>
+              )}
             </div>
+          </div>
+
+          <div>
+            <div className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Coupon code
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={couponInput}
+                onChange={(e) => {
+                  setCouponInput(e.target.value)
+                  if (couponStatus !== 'idle') {
+                    setCouponStatus('idle')
+                    setCouponResult(null)
+                    setCouponMessage('')
+                  }
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleApplyCoupon() }}
+                placeholder="Enter coupon code"
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-2 focus:outline-offset-0 focus:outline-brand-500"
+                disabled={couponStatus === 'checking'}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                tone="light"
+                disabled={!couponInput.trim() || couponStatus === 'checking'}
+                onClick={() => void handleApplyCoupon()}
+              >
+                {couponStatus === 'checking' ? 'Checking…' : 'Apply'}
+              </Button>
+            </div>
+            {couponMessage ? (
+              <p className={`mt-1.5 text-xs ${couponStatus === 'valid' ? 'text-green-700' : 'text-red-600'}`}>
+                {couponMessage}
+              </p>
+            ) : null}
           </div>
 
           <div>
