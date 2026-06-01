@@ -144,6 +144,33 @@ const SheetStickerImage = ({
   )
 }
 
+const PRINT_DRAFT_KEY = 'stickerizz_print_draft'
+
+type PrintDraft = {
+  paperSize: PaperSize
+  marginMm: number
+  placed: PlacedSticker[]
+  quantity: number
+}
+
+const savePrintDraft = (draft: PrintDraft) => {
+  try { localStorage.setItem(PRINT_DRAFT_KEY, JSON.stringify(draft)) } catch {}
+}
+
+const clearPrintDraft = () => {
+  try { localStorage.removeItem(PRINT_DRAFT_KEY) } catch {}
+}
+
+const loadPrintDraft = (): PrintDraft | null => {
+  try {
+    const raw = localStorage.getItem(PRINT_DRAFT_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as PrintDraft
+  } catch {
+    return null
+  }
+}
+
 const PrintPage = () => {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const stageRef = useRef<Konva.Stage | null>(null)
@@ -359,11 +386,29 @@ const PrintPage = () => {
 
   useEffect(() => {
     let cancelled = false
+
+    const restoreFromDraft = () => {
+      const draft = loadPrintDraft()
+      if (!draft?.placed || draft.placed.length === 0) return
+      setPaperSize(draft.paperSize ?? 'A4')
+      setMarginMm(draft.marginMm ?? DEFAULT_MARGIN_MM)
+      setPlaced(draft.placed)
+      setSelectedId(draft.placed[0]?.id ?? null)
+      setQuantity(draft.quantity ?? 1)
+    }
+
     getLatestPendingPrintJob()
       .then((job) => {
-        if (cancelled || !job) return
-        setPendingJob(job)
-        setIsPendingPromptOpen(true)
+        if (cancelled) return
+        if (job) {
+          // Backend session takes priority — clear any stale local draft
+          clearPrintDraft()
+          setPendingJob(job)
+          setIsPendingPromptOpen(true)
+        } else {
+          // No backend session — fall back to local draft
+          restoreFromDraft()
+        }
       })
       .catch((err) => {
         if (cancelled) return
@@ -371,6 +416,8 @@ const PrintPage = () => {
           '[print] failed to fetch pending print job',
           err instanceof Error ? err.message : err
         )
+        // On network error, still try to restore from local draft
+        restoreFromDraft()
       })
 
     return () => {
@@ -386,6 +433,7 @@ const PrintPage = () => {
       setCouponMessage('')
       return
     }
+    savePrintDraft({ paperSize, marginMm, placed, quantity })
     setIsLoadingAddresses(true)
     listAddresses()
       .then((data) => {
@@ -749,6 +797,7 @@ const PrintPage = () => {
         couponCode: couponResult?.couponCode,
       })
       setIsCheckoutConfirmOpen(false)
+      clearPrintDraft()
       toast.success('Redirecting to checkout…', { id: toastId })
       window.location.href = response.checkoutUrl
     } catch (err) {
@@ -784,6 +833,7 @@ const PrintPage = () => {
             onClick={() => {
               setPlaced([])
               setSelectedId(null)
+              clearPrintDraft()
             }}
           >
             Clear sheet
@@ -1065,6 +1115,7 @@ const PrintPage = () => {
             <Button
               type="button"
               variant="ghost"
+              tone="light"
               onClick={() => setIsCheckoutConfirmOpen(false)}
               disabled={isGenerating}
             >
