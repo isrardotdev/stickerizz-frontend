@@ -30,8 +30,8 @@ export const changePassword = async (input: { oldPassword: string; newPassword: 
   await apiClient.post('/auth/change-password', input)
 }
 
-export const googleLogin = async (idToken: string) => {
-  const response = await apiClient.post<AuthResponse>('/auth/google', { idToken })
+export const googleLogin = async (accessToken: string) => {
+  const response = await apiClient.post<AuthResponse>('/auth/google', { accessToken })
   return response.data
 }
 

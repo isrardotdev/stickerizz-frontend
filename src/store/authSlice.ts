@@ -42,9 +42,9 @@ export const registerThunk = createAsyncThunk(
 
 export const googleLoginThunk = createAsyncThunk(
   'auth/googleLogin',
-  async (idToken: string, { rejectWithValue }) => {
+  async (accessToken: string, { rejectWithValue }) => {
     try {
-      return await authApi.googleLogin(idToken)
+      return await authApi.googleLogin(accessToken)
     } catch (error) {
       return rejectWithValue(getApiErrorMessage(error, 'Google sign-in failed. Please try again.'))
     }
